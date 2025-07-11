@@ -12,6 +12,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
 import { timeout } from "hono/timeout";
 import Logging from "./utils/logging";
+import { swaggerUI } from "@hono/swagger-ui";
 
 const { serveStatic } = isRunningOnBun()
     ? await import("hono/bun")
@@ -25,6 +26,11 @@ class App {
     startTime: number = Date.now();
     logger: Logging = Logging.getInstance();
     dbManager: DatabaseManager = DatabaseManager.getInstance();
+    openApiDoc = {
+
+    };
+
+
 
     constructor() {
         this.initializeDatabase();

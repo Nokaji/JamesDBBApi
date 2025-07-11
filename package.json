@@ -37,6 +37,7 @@
   "dependencies": {
     "@hono/graphql-server": "^0.6.2",
     "@hono/node-server": "^1.15.0",
+    "@hono/swagger-ui": "^0.5.2",
     "bun": "^1.2.18",
     "dotenv": "^17.2.0",
     "hono": "^4.8.4",

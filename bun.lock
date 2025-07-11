@@ -6,6 +6,7 @@
       "dependencies": {
         "@hono/graphql-server": "^0.6.2",
         "@hono/node-server": "^1.15.0",
+        "@hono/swagger-ui": "^0.5.2",
         "bun": "^1.2.18",
         "dotenv": "^17.2.0",
         "hono": "^4.8.4",
@@ -27,6 +28,8 @@
     "@hono/graphql-server": ["@hono/graphql-server@0.6.2", "", { "dependencies": { "graphql": "^16.5.0" }, "peerDependencies": { "hono": ">=3.0.0" } }, "sha512-Y7Itd26LQH/im3NTUSqD2NSr5rk9hoJYzOxrVZ9XnS2lKd1aNjBeXY+OatDEDyuVquuyWqBqIAUeoPBzkK4sNA=="],
 
     "@hono/node-server": ["@hono/node-server@1.15.0", "", { "peerDependencies": { "hono": "^4" } }, "sha512-MjmK4l5N4dQpZ9OSWN0tCj7ejuc7WvuWMzSKtc89bnknJykAeHxzRigXBTYZk85H6Awrii6RM59iUiUluApu2A=="],
+
+    "@hono/swagger-ui": ["@hono/swagger-ui@0.5.2", "", { "peerDependencies": { "hono": "*" } }, "sha512-7wxLKdb8h7JTdZ+K8DJNE3KXQMIpJejkBTQjrYlUWF28Z1PGOKw6kUykARe5NTfueIN37jbyG/sBYsbzXzG53A=="],
 
     "@npmcli/fs": ["@npmcli/fs@1.1.1", "", { "dependencies": { "@gar/promisify": "^1.0.1", "semver": "^7.3.5" } }, "sha512-8KG5RD0GVP4ydEzRn/I4BNDuxDtqVbOdm8675T49OIG/NGhaK0pjPX7ZcDlvKYbA+ulvVK3ztfcF4uBdOxuJbQ=="],
 

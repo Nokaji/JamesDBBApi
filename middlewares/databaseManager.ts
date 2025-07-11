@@ -8,9 +8,9 @@ class Database {
     private logger: Logging;
     private isConnected: boolean = false;
 
-    constructor(config: DatabaseConfig, name: string = 'Database') {
+    constructor(config: DatabaseConfig) {
         this.config = config;
-        this.logger = Logging.getInstance(name);
+        this.logger = Logging.getInstance(config.database);
         this.connection = this.createConnection();
     }
 
@@ -86,6 +86,10 @@ class Database {
         return this.connection;
     }
 
+    public getConfig(): DatabaseConfig {
+        return this.config;
+    }
+
     public isHealthy(): boolean {
         return this.isConnected;
     }
@@ -119,7 +123,7 @@ class DatabaseManager {
 
     public async addDatabase(name: string, config: DatabaseConfig): Promise<void> {
         try {
-            const database = new Database(config, `Database-${name}`);
+            const database = new Database(config);
             await database.connect();
             this.databases.set(name, database);
             this.logger.info(`Database '${name}' added and connected successfully`);

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { isRunningOnBun } from "./utils/runtime";
 import ConfigManager from "./managers/ConfigManager";
 import { DatabaseManager } from "./middlewares/databaseManager";
+import { generateSwaggerSpec } from "./utils/swagger";
 import _schema from "./routes/_schema.routes";
 import _database from "./routes/_database.routes";
 import _relations from "./routes/_relations.routes";
@@ -12,7 +13,6 @@ import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
 import { timeout } from "hono/timeout";
 import Logging from "./utils/logging";
-import { swaggerUI } from "@hono/swagger-ui";
 
 const { serveStatic } = isRunningOnBun()
     ? await import("hono/bun")
@@ -26,11 +26,6 @@ class App {
     startTime: number = Date.now();
     logger: Logging = Logging.getInstance();
     dbManager: DatabaseManager = DatabaseManager.getInstance();
-    openApiDoc = {
-
-    };
-
-
 
     constructor() {
         this.initializeDatabase();
@@ -41,12 +36,12 @@ class App {
     private async initializeDatabase() {
         try {
             // Initialiser les bases de données configurées
-            const dbNames = ConfigManager.getDatabaseNames();
-            for (const name of dbNames) {
-                const config = ConfigManager.getDatabaseConfig(name);
-                await this.dbManager.addDatabase(name, config);
-            }
-            this.logger.info(`Initialized ${dbNames.length} database connection(s)`);
+            // const dbNames = ConfigManager.getDatabaseNames();
+            // for (const name of dbNames) {
+            //     const config = ConfigManager.getDatabaseConfig(name);
+            //     await this.dbManager.addDatabase(name, config);
+            // }
+            // this.logger.info(`Initialized ${dbNames.length} database connection(s)`);
         } catch (error) {
             this.logger.error('Failed to initialize databases:', error);
             if (ConfigManager.isProduction()) {
@@ -170,13 +165,70 @@ class App {
                     schema: '/api/_schema',
                     database: '/api/_database',
                     relations: '/api/_relations',
-                    health: '/health'
+                    health: '/health',
+                    docs: '/docs',
+                    swagger: '/swagger.json'
                 }
             });
         });
 
+        api.get("/docs", (c) => {
+            // Rediriger vers l'endpoint racine
+            return c.redirect('/docs', 301);
+        });
+
         this.app.route(`/api/${ConfigManager.APP.API_VERSION}`, api);
         this.app.route("/api", api); // Fallback for backward compatibility
+
+        // Documentation endpoints à la racine
+        this.app.get("/docs", (c) => {
+            const swaggerUI = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JamesDbApi Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+    <style>
+        html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { margin:0; background: #fafafa; }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
+                url: '/swagger.json',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                tryItOutEnabled: true,
+                requestInterceptor: (request) => {
+                    request.headers['Content-Type'] = 'application/json';
+                    return request;
+                }
+            });
+        };
+    </script>
+</body>
+</html>`;
+            return c.html(swaggerUI);
+        });
+
+        this.app.get("/swagger.json", (c) => {
+            const spec = generateSwaggerSpec();
+            return c.json(spec);
+        });
 
         // Root endpoint
         this.app.get("/", (c) => {
@@ -184,8 +236,10 @@ class App {
             return c.json({
                 message: "Welcome to JamesDbApi",
                 ...appInfo,
-                documentation: "/api",
+                documentation: "/docs",
+                api: "/api",
                 health: "/health",
+                swagger: "/swagger.json",
                 timestamp: Date.now()
             });
         });
@@ -241,7 +295,7 @@ class App {
             return c.json({
                 error: 'Not Found',
                 message: 'The requested endpoint does not exist',
-                available_endpoints: ['/api', '/health', '/metrics'],
+                available_endpoints: ['/api', '/docs', '/health', '/metrics'],
                 timestamp: Date.now()
             }, 404);
         });
@@ -255,7 +309,7 @@ class App {
             {
                 fetch: this.app.fetch,
                 port,
-                hostname: host
+                // hostname: host
             },
             (info) => {
                 if (info) {

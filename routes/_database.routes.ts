@@ -29,7 +29,6 @@ _database.get("/", (c) => {
             databases: dbNames.map(name => ({
                 name,
                 status: healthStatus[name] ? 'healthy' : 'unhealthy',
-                type: ConfigManager.getDatabaseConfig(name).dialect
             })),
             overall_health: Object.values(healthStatus).every(status => status)
         });
@@ -59,7 +58,7 @@ _database.get("/health", async (c) => {
                 healthDetails[name] = {
                     status: 'healthy',
                     response_time_ms: responseTime,
-                    dialect: ConfigManager.getDatabaseConfig(name).dialect,
+                    dialect: dbManager.getDatabase(name).getConfig().dialect,
                     last_checked: new Date().toISOString()
                 };
             } catch (error) {
@@ -200,7 +199,7 @@ _database.get("/:name/info", async (c) => {
 
         const database = dbManager.getDatabase(name);
         const sequelize = database.getConnection();
-        const config = ConfigManager.getDatabaseConfig(name);
+        const config = database.getConfig();
 
         // Obtenir des informations sur la base de données
         const tables = await sequelize.getQueryInterface().showAllTables();
@@ -303,8 +302,8 @@ _database.post("/:name/query", async (c) => {
 // GET /api/_database/config - Configuration des bases de données disponibles
 _database.get("/config", (c) => {
     try {
-        const configs = ConfigManager.getDatabaseNames().map(name => {
-            const config = ConfigManager.getDatabaseConfig(name);
+        const configs = dbManager.getDatabaseNames().map(name => {
+            const config = dbManager.getDatabase(name).getConfig();
             return {
                 name,
                 dialect: config.dialect,

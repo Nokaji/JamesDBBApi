@@ -31,24 +31,18 @@ interface SecurityConfig {
     SECURE_COOKIES: boolean;
 }
 
-interface DatabaseConfigs {
-    [key: string]: DatabaseConfig;
-}
-
 class ConfigManager {
     private static instance: ConfigManager;
     private logger: Logging;
 
     public readonly APP: AppConfig;
     public readonly SECURITY: SecurityConfig;
-    public readonly DATABASES: DatabaseConfigs;
 
     private constructor() {
         this.logger = Logging.getInstance('ConfigManager');
 
         this.APP = this.loadAppConfig();
         this.SECURITY = this.loadSecurityConfig();
-        this.DATABASES = this.loadDatabaseConfigs();
 
         this.validateConfig();
         this.logger.info('Configuration loaded successfully');
@@ -89,52 +83,6 @@ class ConfigManager {
             HTTPS_ONLY: process.env.HTTPS_ONLY === 'true',
             SECURE_COOKIES: process.env.SECURE_COOKIES === 'true'
         };
-    }
-
-    private loadDatabaseConfigs(): DatabaseConfigs {
-        const configs: DatabaseConfigs = {};
-
-        // Load primary database
-        if (process.env.DB_HOST || process.env.DB_DIALECT) {
-            configs.primary = {
-                host: process.env.DB_HOST || 'localhost',
-                port: this.parseNumber(process.env.DB_PORT, 5432),
-                user: process.env.DB_USER || 'root',
-                password: process.env.DB_PASSWORD || '',
-                database: process.env.DB_NAME || 'james_db',
-                dialect: (process.env.DB_DIALECT as any) || 'sqlite'
-            };
-        }
-
-        // Load SQLite default if no other database configured
-        if (Object.keys(configs).length === 0) {
-            configs.primary = {
-                host: '',
-                port: 0,
-                user: '',
-                password: '',
-                database: process.env.SQLITE_PATH || './data/james.db',
-                dialect: 'sqlite'
-            };
-        }
-
-        // Load additional databases from environment
-        const dbPrefixes = this.getEnvPrefixes('DB_');
-        dbPrefixes.forEach(prefix => {
-            if (prefix !== 'DB_' && process.env[`${prefix}HOST`]) {
-                const name = prefix.replace('DB_', '').replace('_', '').toLowerCase();
-                configs[name] = {
-                    host: process.env[`${prefix}HOST`] || 'localhost',
-                    port: this.parseNumber(process.env[`${prefix}PORT`], 5432),
-                    user: process.env[`${prefix}USER`] || 'root',
-                    password: process.env[`${prefix}PASSWORD`] || '',
-                    database: process.env[`${prefix}NAME`] || name,
-                    dialect: (process.env[`${prefix}DIALECT`] as any) || 'postgres'
-                };
-            }
-        });
-
-        return configs;
     }
 
     private parseNumber(value: string | undefined, defaultValue: number): number {
@@ -182,22 +130,6 @@ class ConfigManager {
             this.logger.warn('BCRYPT_ROUNDS should be at least 10 for security');
         }
 
-        // Validate DATABASE configs
-        Object.entries(this.DATABASES).forEach(([name, config]) => {
-            if (!['mysql', 'postgres', 'sqlite', 'mssql'].includes(config.dialect)) {
-                errors.push(`Database '${name}': Invalid dialect '${config.dialect}'`);
-            }
-
-            if (config.dialect !== 'sqlite') {
-                if (!config.host) {
-                    errors.push(`Database '${name}': Host is required for ${config.dialect}`);
-                }
-                if (!config.database) {
-                    errors.push(`Database '${name}': Database name is required`);
-                }
-            }
-        });
-
         if (errors.length > 0) {
             this.logger.error('Configuration validation failed:');
             errors.forEach(error => this.logger.error(`  - ${error}`));
@@ -215,18 +147,6 @@ class ConfigManager {
 
     public isTest(): boolean {
         return this.APP.ENV === 'test';
-    }
-
-    public getDatabaseConfig(name: string = 'primary'): DatabaseConfig {
-        const config = this.DATABASES[name];
-        if (!config) {
-            throw new Error(`Database configuration '${name}' not found`);
-        }
-        return config;
-    }
-
-    public getDatabaseNames(): string[] {
-        return Object.keys(this.DATABASES);
     }
 
     public getAppInfo(): { name: string; version: string; environment: string } {

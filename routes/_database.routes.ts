@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { DatabaseManager } from "../middlewares/databaseManager";
+import { DatabaseManager } from "../middlewares/database";
 import Logging from "../utils/logging";
 import ConfigManager from "../managers/ConfigManager";
 import { DatabaseConfig } from "../utils/types";
@@ -44,7 +44,6 @@ _database.get("/", (c) => {
 _database.get("/health", async (c) => {
     try {
         const dbNames = dbManager.getDatabaseNames();
-        const healthStatus = dbManager.getHealthStatus();
         const healthDetails: any = {};
 
         for (const name of dbNames) {
@@ -58,7 +57,7 @@ _database.get("/health", async (c) => {
                 const responseTime = Date.now() - startTime;
 
                 healthDetails[name] = {
-                    status: 'healthy',
+                    status: database.isHealthy() ? 'healthy' : 'unhealthy',
                     response_time_ms: responseTime,
                     dialect: dbManager.getDatabase(name).getConfig().dialect,
                     last_checked: new Date().toISOString()

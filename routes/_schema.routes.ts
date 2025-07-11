@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { DatabaseManager } from "../middlewares/databaseManager";
+import { DatabaseManager } from "../middlewares/database";
 import { SchemaConverter, TableSchema } from "../utils/convert";
 import Logging from "../utils/logging";
 import ConfigManager from "../managers/ConfigManager";

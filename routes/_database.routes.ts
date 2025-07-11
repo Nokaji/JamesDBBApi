@@ -1,12 +1,329 @@
 import { Hono } from "hono";
+import { DatabaseManager } from "../middlewares/databaseManager";
+import Logging from "../utils/logging";
+import ConfigManager from "../managers/ConfigManager";
+import { DatabaseConfig } from "../utils/types";
 
-var _database = new Hono();
+const _database = new Hono();
+const logger = Logging.getInstance('DatabaseRoutes');
+const dbManager = DatabaseManager.getInstance();
 
+// Middleware pour logging des requêtes
+_database.use('*', async (c, next) => {
+    const start = Date.now();
+    await next();
+    const duration = Date.now() - start;
+    logger.debug(`${c.req.method} ${c.req.path} - ${c.res.status} (${duration}ms)`);
+});
+
+// GET /api/_database - Status général des bases de données
 _database.get("/", (c) => {
-    return c.json({
-        message: "Database endpoint is active",
-        timestamp: Date.now(),
-    });
+    try {
+        const dbNames = dbManager.getDatabaseNames();
+        const healthStatus = dbManager.getHealthStatus();
+
+        return c.json({
+            message: "Database endpoint is active",
+            timestamp: Date.now(),
+            total_databases: dbNames.length,
+            databases: dbNames.map(name => ({
+                name,
+                status: healthStatus[name] ? 'healthy' : 'unhealthy',
+                type: ConfigManager.getDatabaseConfig(name).dialect
+            })),
+            overall_health: Object.values(healthStatus).every(status => status)
+        });
+    } catch (error) {
+        logger.error('Error in database root endpoint:', error);
+        return c.json({ error: 'Internal server error' }, 500);
+    }
+});
+
+// GET /api/_database/health - Health check détaillé
+_database.get("/health", async (c) => {
+    try {
+        const dbNames = dbManager.getDatabaseNames();
+        const healthStatus = dbManager.getHealthStatus();
+        const healthDetails: any = {};
+
+        for (const name of dbNames) {
+            try {
+                const database = dbManager.getDatabase(name);
+                const sequelize = database.getConnection();
+
+                // Test de connexion simple
+                const startTime = Date.now();
+                await sequelize.authenticate();
+                const responseTime = Date.now() - startTime;
+
+                healthDetails[name] = {
+                    status: 'healthy',
+                    response_time_ms: responseTime,
+                    dialect: ConfigManager.getDatabaseConfig(name).dialect,
+                    last_checked: new Date().toISOString()
+                };
+            } catch (error) {
+                healthDetails[name] = {
+                    status: 'unhealthy',
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                    last_checked: new Date().toISOString()
+                };
+            }
+        }
+
+        const isHealthy = Object.values(healthDetails).every((db: any) => db.status === 'healthy');
+
+        return c.json({
+            overall_status: isHealthy ? 'healthy' : 'degraded',
+            timestamp: Date.now(),
+            databases: healthDetails
+        }, isHealthy ? 200 : 503);
+
+    } catch (error) {
+        logger.error('Error in health check:', error);
+        return c.json({
+            overall_status: 'unhealthy',
+            error: 'Health check failed',
+            timestamp: Date.now()
+        }, 503);
+    }
+});
+
+// POST /api/_database/connect - Connecter une nouvelle base de données
+_database.post("/connect", async (c) => {
+    try {
+        const body = await c.req.json();
+        const { name, config }: { name: string; config: DatabaseConfig } = body;
+
+        if (!name || !config) {
+            return c.json({
+                error: 'Name and config are required',
+                required_fields: ['name', 'config']
+            }, 400);
+        }
+
+        // Valider la configuration
+        const requiredFields = ['host', 'port', 'user', 'password', 'database', 'dialect'];
+        const missingFields = requiredFields.filter(field => {
+            if (config.dialect === 'sqlite') {
+                return field === 'dialect' && !config[field as keyof DatabaseConfig];
+            }
+            return !config[field as keyof DatabaseConfig];
+        });
+
+        if (missingFields.length > 0) {
+            return c.json({
+                error: 'Missing required configuration fields',
+                missing_fields: missingFields
+            }, 400);
+        }
+
+        // Vérifier si la base de données existe déjà
+        if (dbManager.getDatabaseNames().includes(name)) {
+            return c.json({
+                error: `Database '${name}' already exists`,
+                existing_databases: dbManager.getDatabaseNames()
+            }, 409);
+        }
+
+        // Tenter la connexion
+        await dbManager.addDatabase(name, config);
+
+        logger.info(`Database '${name}' connected successfully`);
+
+        return c.json({
+            message: `Database '${name}' connected successfully`,
+            database: {
+                name,
+                dialect: config.dialect,
+                status: 'connected'
+            }
+        }, 201);
+
+    } catch (error) {
+        logger.error('Error connecting database:', error);
+        return c.json({
+            error: 'Failed to connect database',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }, 500);
+    }
+});
+
+// DELETE /api/_database/:name - Déconnecter une base de données
+_database.delete("/:name", async (c) => {
+    try {
+        const name = c.req.param('name');
+
+        if (!dbManager.getDatabaseNames().includes(name)) {
+            return c.json({
+                error: `Database '${name}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+
+        if (name === 'primary') {
+            return c.json({
+                error: 'Cannot disconnect primary database',
+                hint: 'Primary database is required for system operation'
+            }, 403);
+        }
+
+        await dbManager.removeDatabase(name);
+
+        logger.info(`Database '${name}' disconnected successfully`);
+
+        return c.json({
+            message: `Database '${name}' disconnected successfully`,
+            remaining_databases: dbManager.getDatabaseNames()
+        });
+
+    } catch (error) {
+        logger.error('Error disconnecting database:', error);
+        return c.json({
+            error: 'Failed to disconnect database',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }, 500);
+    }
+});
+
+// GET /api/_database/:name/info - Informations détaillées sur une base de données
+_database.get("/:name/info", async (c) => {
+    try {
+        const name = c.req.param('name');
+
+        if (!dbManager.getDatabaseNames().includes(name)) {
+            return c.json({
+                error: `Database '${name}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+
+        const database = dbManager.getDatabase(name);
+        const sequelize = database.getConnection();
+        const config = ConfigManager.getDatabaseConfig(name);
+
+        // Obtenir des informations sur la base de données
+        const tables = await sequelize.getQueryInterface().showAllTables();
+
+        // Informations de version (si possible)
+        let version = 'Unknown';
+        try {
+            const [results] = await sequelize.query('SELECT VERSION() as version');
+            if (Array.isArray(results) && results.length > 0) {
+                version = (results[0] as any).version;
+            }
+        } catch {
+            // Ignore l'erreur de version, pas critique
+        }
+
+        return c.json({
+            database: {
+                name,
+                dialect: config.dialect,
+                host: config.dialect !== 'sqlite' ? config.host : 'file',
+                database: config.database,
+                status: database.isHealthy() ? 'connected' : 'disconnected',
+                version,
+                table_count: tables.length,
+                tables: tables.map(table => ({ name: table, type: 'table' }))
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error getting database info:', error);
+        return c.json({
+            error: 'Failed to get database information',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }, 500);
+    }
+});
+
+// POST /api/_database/:name/query - Exécuter une requête SQL
+_database.post("/:name/query", async (c) => {
+    try {
+        const name = c.req.param('name');
+        const { query, type = 'SELECT' }: { query: string; type?: string } = await c.req.json();
+
+        if (!query) {
+            return c.json({
+                error: 'Query is required',
+                example: { query: 'SELECT * FROM users LIMIT 10', type: 'SELECT' }
+            }, 400);
+        }
+
+        if (!dbManager.getDatabaseNames().includes(name)) {
+            return c.json({
+                error: `Database '${name}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+
+        const database = dbManager.getDatabase(name);
+        const sequelize = database.getConnection();
+
+        // Limiter les requêtes dangereuses en production
+        if (ConfigManager.isProduction()) {
+            const dangerousPatterns = [/DROP\s+/i, /DELETE\s+/i, /TRUNCATE\s+/i, /ALTER\s+/i];
+            if (dangerousPatterns.some(pattern => pattern.test(query))) {
+                return c.json({
+                    error: 'Dangerous queries are not allowed in production',
+                    query_type: 'RESTRICTED'
+                }, 403);
+            }
+        }
+
+        const startTime = Date.now();
+        const [results, metadata] = await sequelize.query(query);
+        const executionTime = Date.now() - startTime;
+
+        logger.info(`Query executed on '${name}' in ${executionTime}ms`);
+
+        return c.json({
+            query,
+            database: name,
+            execution_time_ms: executionTime,
+            row_count: Array.isArray(results) ? results.length : 0,
+            results: Array.isArray(results) ? results.slice(0, 100) : results, // Limiter à 100 résultats
+            metadata: {
+                fields: (metadata as any)?.fields || null,
+                affected_rows: (metadata as any)?.affectedRows || null
+            }
+        });
+
+    } catch (error) {
+        logger.error('Error executing query:', error);
+        return c.json({
+            error: 'Query execution failed',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            query_hint: 'Check your SQL syntax and permissions'
+        }, 500);
+    }
+});
+
+// GET /api/_database/config - Configuration des bases de données disponibles
+_database.get("/config", (c) => {
+    try {
+        const configs = ConfigManager.getDatabaseNames().map(name => {
+            const config = ConfigManager.getDatabaseConfig(name);
+            return {
+                name,
+                dialect: config.dialect,
+                host: config.dialect !== 'sqlite' ? config.host : 'file',
+                database: config.database,
+                // Ne pas exposer les credentials
+                has_credentials: !!(config.user && config.password)
+            };
+        });
+
+        return c.json({
+            databases: configs,
+            total: configs.length
+        });
+
+    } catch (error) {
+        logger.error('Error getting database config:', error);
+        return c.json({ error: 'Failed to get database configuration' }, 500);
+    }
 });
 
 export default _database;

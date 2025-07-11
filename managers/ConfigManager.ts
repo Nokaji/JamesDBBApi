@@ -94,13 +94,6 @@ class ConfigManager {
         }));
     }
 
-    public getDatabaseConfig(name: string): DatabaseConfigEntry | null {
-        if (!this.db) this.ensureDb();
-        const row = this.db!.query('SELECT name, config FROM db_configs WHERE name = ?').get([name]) as { name: string; config: string } | undefined;
-        if (!row) return null;
-        return { name: row.name, config: JSON.parse(row.config) };
-    }
-
     public addOrUpdateDatabaseConfig(entry: DatabaseConfigEntry): void {
         if (!this.db) this.ensureDb();
         this.db!.run(

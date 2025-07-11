@@ -2,6 +2,8 @@ import { DatabaseConfig } from "../utils/types.ts";
 import { Sequelize, DataTypes } from 'sequelize';
 import Logging from "../utils/logging.ts";
 
+import configManager from "../managers/ConfigManager.ts";
+
 class Database {
     private connection: Sequelize;
     private config: DatabaseConfig;
@@ -124,6 +126,7 @@ class DatabaseManager {
     public async addDatabase(name: string, config: DatabaseConfig): Promise<void> {
         try {
             const database = new Database(config);
+            configManager.addOrUpdateDatabaseConfig({ name, config });
             await database.connect();
             this.databases.set(name, database);
             this.logger.info(`Database '${name}' added and connected successfully`);
@@ -131,6 +134,19 @@ class DatabaseManager {
             this.logger.error(`Failed to add database '${name}': ${error}`);
             throw error;
         }
+    }
+
+    public async setDatabases(name: string, config: DatabaseConfig): Promise<void> {
+        const existingDb = this.databases.get(name);
+        if (existingDb) {
+            await existingDb.disconnect();
+            this.databases.delete(name);
+            this.logger.info(`Disconnected existing database '${name}'`);
+        }
+        const database = new Database(config);
+        this.databases.set(name, database);
+        await database.connect(); // Connect the new database
+        this.logger.info(`Database '${name}' set successfully`);
     }
 
     public getDatabase(name: string): Database {
@@ -146,6 +162,7 @@ class DatabaseManager {
         if (database) {
             await database.disconnect();
             this.databases.delete(name);
+            configManager.removeDatabaseConfig(name);
             this.logger.info(`Database '${name}' removed`);
         }
     }

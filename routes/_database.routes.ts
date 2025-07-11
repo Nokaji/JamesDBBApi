@@ -3,6 +3,7 @@ import { DatabaseManager } from "../middlewares/databaseManager";
 import Logging from "../utils/logging";
 import ConfigManager from "../managers/ConfigManager";
 import { DatabaseConfig } from "../utils/types";
+import configManager from "../managers/ConfigManager";
 
 const _database = new Hono();
 const logger = Logging.getInstance('DatabaseRoutes');
@@ -29,6 +30,7 @@ _database.get("/", (c) => {
             databases: dbNames.map(name => ({
                 name,
                 status: healthStatus[name] ? 'healthy' : 'unhealthy',
+                type: dbManager.getDatabase(name).getConfig().dialect,
             })),
             overall_health: Object.values(healthStatus).every(status => status)
         });

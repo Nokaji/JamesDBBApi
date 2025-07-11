@@ -1600,32 +1600,6 @@ export const generateSwaggerSpec = () => {
                     }
                 }
             },
-            "/api/_database/list": {
-                get: {
-                    summary: "List databases",
-                    description: "Get list of all available databases",
-                    tags: ["Database"],
-                    responses: {
-                        "200": {
-                            description: "List of databases",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            databases: {
-                                                type: "array",
-                                                items: { type: "string" }
-                                            },
-                                            count: { type: "number" }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
             "/api/_database/{dbName}/query": {
                 post: {
                     summary: "Execute query",

@@ -2,25 +2,7 @@ import { Context, Next } from 'hono';
 import { sign, verify } from 'hono/jwt';
 import ConfigManager from '../managers/ConfigManager';
 import Logging from '../utils/logging';
-
-interface User {
-    id: string;
-    username: string;
-    email: string;
-    roles: string[];
-    permissions: string[];
-}
-
-interface JWTPayload {
-    sub: string;
-    username: string;
-    email: string;
-    roles: string[];
-    permissions: string[];
-    iat: number;
-    exp: number;
-    [key: string]: any; // Allow additional properties for Hono JWT compatibility
-}
+import { User, JWTPayload } from '../utils/types';
 
 class AuthManager {
     private static instance: AuthManager;

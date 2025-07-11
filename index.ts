@@ -36,12 +36,15 @@ class App {
     private async initializeDatabase() {
         try {
             // Initialiser les bases de données configurées
-            // const dbNames = ConfigManager.getDatabaseNames();
-            // for (const name of dbNames) {
-            //     const config = ConfigManager.getDatabaseConfig(name);
-            //     await this.dbManager.addDatabase(name, config);
-            // }
-            // this.logger.info(`Initialized ${dbNames.length} database connection(s)`);
+            const db = ConfigManager.getAllDatabaseConfigs();
+            if (db.length === 0) {
+                this.logger.warn('No database configurations found, skipping initialization');
+                return;
+            }
+            for (const config of db) {
+                await this.dbManager.setDatabases(config.name, config.config); // Set or add the database
+            }
+            this.logger.info(`Initialized ${db.length} database connection(s)`);
         } catch (error) {
             this.logger.error('Failed to initialize databases:', error);
             if (ConfigManager.isProduction()) {
@@ -309,7 +312,7 @@ class App {
             {
                 fetch: this.app.fetch,
                 port,
-                // hostname: host
+                ...(ConfigManager.isProduction() ? { hostname: host } : {})
             },
             (info) => {
                 if (info) {

@@ -54,7 +54,7 @@ _schema.get("/databases", (c) => {
             databases: dbNames.map(name => ({
                 name,
                 healthy: healthStatus[name],
-                config: ConfigManager.getDatabaseConfig(name)
+                config: dbManager.getDatabase(name).getConfig()
             }))
         });
     } catch (error) {

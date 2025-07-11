@@ -1683,6 +1683,123 @@ export const generateSwaggerSpec = () => {
                     }
                 }
             },
+            "/api/_database/{dbName}/get/{tableName}": {
+                post: {
+                    summary: "Get table data",
+                    description: "Get data from a specific table in a database",
+                    tags: ["Database"],
+                    parameters: [
+                        {
+                            name: "dbName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Database name"
+                        },
+                        {
+                            name: "tableName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Table name"
+                        },
+                    ],
+                    requestBody: {
+                        required: false,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        where: {
+                                            type: "object",
+                                            additionalProperties: true,
+                                            description: "Filter conditions for the query"
+                                        },
+                                        order: {
+                                            type: "array",
+                                            items: {
+                                                type: "array",
+                                                items: [
+                                                    { type: "string", description: "Column name" },
+                                                    { type: "string", enum: ["ASC", "DESC"], description: "Sort direction" }
+                                                ],
+                                                description: "Sorting order for the results"
+                                            },
+                                            description: "Order by conditions"
+                                        },
+                                        columns: {
+                                            type: "array",
+                                            items: { type: "string" },
+                                            description: "List of columns to select"
+                                        },
+                                        limit: {
+                                            type: "integer",
+                                            description: "Maximum number of rows to return",
+                                            default: 100
+                                        },
+                                        offset: {
+                                            type: "integer",
+                                            description: "Number of rows to skip before starting to return rows",
+                                            default: 0
+                                        }
+                                    },
+                                    additionalProperties: false,
+                                    description: "Query options for filtering, sorting and selecting columns"
+                                }
+                            }
+                        }
+                    },
+                    responses: {
+                        "200": {
+                            description: "Table data retrieved successfully",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            data: {
+                                                type: "array",
+                                                items: {
+                                                    type: "object",
+                                                    additionalProperties: true,
+                                                    description: "Rows from the table"
+                                                }
+                                            },
+                                            count: {
+                                                type: "number",
+                                                description: "Total number of rows in the table"
+                                            },
+                                            columns: {
+                                                type: "array",
+                                                items: {
+                                                    type: "object",
+                                                    properties: {
+                                                        name: { type: "string", description: "Column name" },
+                                                        type: { type: "string", description: "Column data type" },
+                                                        nullable: { type: "boolean", description: "Is column nullable" },
+                                                        default: { type: "string", description: "Default value" }
+                                                    }
+                                                },
+                                                description: "List of columns in the table"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "404": {
+                            description: "Database or table not found",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "/api/_database/{dbName}/tables": {
                 get: {
                     summary: "List tables",

@@ -5,6 +5,28 @@ import Logging from "../utils/logging.ts";
 import configManager from "../managers/ConfigManager.ts";
 
 class Database {
+    /**
+     * Génère dynamiquement tous les modèles Sequelize à partir de la structure réelle de la base de données.
+     * Retourne un ModelRegistry (clé = nom de table, valeur = modèle Sequelize)
+     */
+    private models: { [tableName: string]: any } = {};
+
+    /**
+     * Génère dynamiquement tous les modèles Sequelize à partir de la structure réelle de la base de données.
+     * Retourne un ModelRegistry (clé = nom de table, valeur = modèle Sequelize)
+     */
+    public async generateModels(): Promise<{ [tableName: string]: any }> {
+        const { generateModelsFromDatabase } = await import("../utils/convert.ts");
+        this.models = await generateModelsFromDatabase(this.connection);
+        return this.models;
+    }
+
+    /**
+     * Retourne le ModelRegistry généré (clé = nom de table, valeur = modèle Sequelize)
+     */
+    public getModels(): { [tableName: string]: any } {
+        return this.models;
+    }
     private connection: Sequelize;
     private config: DatabaseConfig;
     private logger: Logging;
@@ -50,6 +72,8 @@ class Database {
             await this.connection.authenticate();
             this.isConnected = true;
             this.logger.info(`Connected to ${this.config.dialect} database successfully`);
+            // Génération automatique des modèles à la connexion
+            await this.generateModels();
         } catch (error) {
             this.isConnected = false;
             this.logger.error(`Failed to connect to database: ${error}`);

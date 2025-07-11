@@ -300,6 +300,67 @@ _database.post("/:name/query", async (c) => {
     }
 });
 
+// GET /api/_database/:database/get/:table - Récupérer des données d'une table (sans SQL brut)
+_database.post('/:database/get/:table', async (c) => {
+    try {
+        const dbName = c.req.param('database');
+        const table = c.req.param('table');
+        const body = await c.req.json();
+        const { columns, where, include, limit, offset, order } = body || {};
+
+        if (!dbManager.getDatabaseNames().includes(dbName)) {
+            return c.json({
+                error: `Database '${dbName}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+
+        const database = dbManager.getDatabase(dbName);
+        const sequelize = database.getConnection();
+        const models = sequelize.models;
+        const model = models[table];
+        if (!model) {
+            return c.json({
+                error: `Table/model '${table}' not found in database '${dbName}'`,
+                available_tables: Object.keys(models)
+            }, 404);
+        }
+
+        // Construction de l'option Sequelize
+        const options: any = {};
+        if (columns && Array.isArray(columns)) options.attributes = columns;
+        if (where && typeof where === 'object') {
+            // Nettoyer les clés dont la valeur est un objet vide
+            options.where = Object.fromEntries(
+                Object.entries(where).filter(([_, v]) => {
+                    if (typeof v === 'object' && v !== null && Object.keys(v).length === 0) return false;
+                    return true;
+                })
+            );
+        }
+        if (include && Array.isArray(include)) options.include = include;
+        if (typeof limit === 'number') options.limit = limit;
+        if (typeof offset === 'number') options.offset = offset;
+        if (order) options.order = order;
+
+        const results = await model.findAll(options);
+
+        return c.json({
+            database: dbName,
+            table,
+            count: results.length,
+            results
+        });
+    } catch (error) {
+        logger.error('Error in get-table endpoint:', error);
+        return c.json({
+            error: 'Failed to fetch data',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            hint: 'Check table name, columns, and relations.'
+        }, 500);
+    }
+});
+
 // GET /api/_database/config - Configuration des bases de données disponibles
 _database.get("/config", (c) => {
     try {

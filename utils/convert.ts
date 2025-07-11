@@ -545,6 +545,101 @@ function convertToSequelize(schema: TableSchema, sequelize: Sequelize, options?:
     return converter.convertToSequelize(schema, sequelize);
 }
 
+/**
+ * Génère dynamiquement tous les modèles Sequelize à partir de la structure réelle de la base de données.
+ * Les modèles sont ajoutés à sequelize.models et retournés sous forme de registry.
+ * @param sequelize Instance Sequelize connectée
+ * @returns ModelRegistry
+ */
+export async function generateModelsFromDatabase(sequelize: Sequelize): Promise<ModelRegistry> {
+    const registry: ModelRegistry = {};
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = await queryInterface.showAllTables();
+    for (const tableName of tables) {
+        // Vérifie si le modèle existe déjà
+        if (sequelize.models[tableName]) {
+            registry[tableName] = sequelize.models[tableName];
+            continue;
+        }
+        // Récupère la structure de la table
+        const columns = await queryInterface.describeTable(tableName);
+        const attributes: { [key: string]: ModelAttributeColumnOptions } = {};
+        for (const [col, def] of Object.entries(columns)) {
+            // Mappe le type SQL -> Sequelize (complet)
+            let type: any = undefined;
+            const sqlType = typeof def.type === 'string' ? def.type.toLowerCase() : '';
+
+            if (sqlType.includes('bigint')) type = DataTypes.BIGINT;
+            else if (sqlType.includes('smallint')) type = DataTypes.SMALLINT;
+            else if (sqlType.includes('int')) type = DataTypes.INTEGER;
+            else if (sqlType.includes('float')) type = DataTypes.FLOAT;
+            else if (sqlType.includes('double')) type = DataTypes.DOUBLE;
+            else if (sqlType.includes('decimal') || sqlType.includes('numeric')) type = DataTypes.DECIMAL;
+            else if (sqlType.includes('real')) type = DataTypes.REAL;
+            else if (sqlType.includes('char')) type = DataTypes.CHAR;
+            else if (sqlType.includes('varchar')) type = DataTypes.STRING;
+            else if (sqlType.includes('text') || sqlType.includes('mediumtext') || sqlType.includes('longtext')) type = DataTypes.TEXT;
+            else if (sqlType.includes('tinytext')) type = DataTypes.STRING(255);
+            else if (sqlType.includes('timestamp') || sqlType.includes('datetime')) type = DataTypes.DATE;
+            else if (sqlType === 'date') type = DataTypes.DATEONLY;
+            else if (sqlType === 'time') type = DataTypes.TIME;
+            else if (sqlType.includes('bool') || sqlType === 'tinyint(1)') type = DataTypes.BOOLEAN;
+            else if (sqlType.includes('jsonb')) type = DataTypes.JSONB;
+            else if (sqlType.includes('json')) type = DataTypes.JSON;
+            else if (sqlType.includes('uuid')) type = DataTypes.UUID;
+            // ENUM : fallback sur STRING si pas de valeurs connues
+            else if (sqlType.includes('enum')) type = DataTypes.STRING;
+            // ARRAY : toujours ARRAY(STRING) si on ne peut pas deviner le type d'élément
+            else if (sqlType.includes('array')) type = DataTypes.ARRAY(DataTypes.STRING);
+            else if (sqlType.includes('geometry')) type = DataTypes.GEOMETRY;
+            else if (sqlType.includes('geography')) type = DataTypes.GEOGRAPHY;
+            else if (sqlType.includes('blob') || sqlType.includes('binary') || sqlType.includes('varbinary')) type = DataTypes.BLOB;
+
+            // Si le type n'est pas reconnu, fallback sur STRING
+            if (!type) {
+                type = DataTypes.STRING;
+                // Optionnel : log interne pour debug
+                // console.warn(`Type SQL non reconnu pour ${col} (${sqlType}), fallback sur STRING.`);
+            }
+
+            // Détection autoIncrement
+            let autoIncrement = false;
+            if (
+                (sqlType.includes('int') || sqlType.includes('serial')) &&
+                (def.defaultValue &&
+                    (def.defaultValue.toString().toLowerCase().includes('auto_increment') ||
+                        def.defaultValue.toString().toLowerCase().includes('nextval')))
+            ) {
+                autoIncrement = true;
+            }
+
+            // Gestion des valeurs par défaut SQL (CURRENT_TIMESTAMP, etc.)
+            let defaultValue = def.defaultValue;
+            if (typeof defaultValue === 'string') {
+                const val = defaultValue.toUpperCase();
+                if (val.includes('CURRENT_TIMESTAMP')) {
+                    defaultValue = (sequelize as any).literal ? (sequelize as any).literal('CURRENT_TIMESTAMP') : undefined;
+                }
+            }
+
+            attributes[col] = {
+                type,
+                allowNull: def.allowNull,
+                primaryKey: def.primaryKey,
+                autoIncrement,
+                defaultValue
+            };
+        }
+        const model = sequelize.define(tableName, attributes, {
+            tableName,
+            timestamps: false,
+            freezeTableName: true
+        });
+        registry[tableName] = model;
+    }
+    return registry;
+}
+
 export {
     convertToSequelize,
     SchemaConverter,

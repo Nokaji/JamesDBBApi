@@ -146,6 +146,7 @@ docker-compose*
 # Uploads et données temporaires
 uploads/
 data/local/
+data/
 
 # Configuration locale
 config/local.*

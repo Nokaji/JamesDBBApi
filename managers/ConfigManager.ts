@@ -31,6 +31,16 @@ interface SecurityConfig {
     SECURE_COOKIES: boolean;
 }
 
+
+import Database from 'bun:sqlite';
+import path from 'path';
+import fs from 'fs';
+
+interface DatabaseConfigEntry {
+    name: string;
+    config: DatabaseConfig;
+}
+
 class ConfigManager {
     private static instance: ConfigManager;
     private logger: Logging;
@@ -38,11 +48,17 @@ class ConfigManager {
     public readonly APP: AppConfig;
     public readonly SECURITY: SecurityConfig;
 
+    private db: Database | null = null;
+    private dbPath: string;
+
     private constructor() {
         this.logger = Logging.getInstance('ConfigManager');
 
         this.APP = this.loadAppConfig();
         this.SECURITY = this.loadSecurityConfig();
+
+        this.dbPath = path.resolve(process.cwd(), 'data', 'james.db');
+        this.ensureDb();
 
         this.validateConfig();
         this.logger.info('Configuration loaded successfully');
@@ -54,6 +70,65 @@ class ConfigManager {
         }
         return ConfigManager.instance;
     }
+
+    private ensureDb() {
+        const dir = path.dirname(this.dbPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        this.db = new Database(this.dbPath);
+        this.db.run(`CREATE TABLE IF NOT EXISTS db_configs (
+            name TEXT PRIMARY KEY,
+            config TEXT NOT NULL
+        )`);
+    }
+
+    // --- Database config management ---
+
+    public getAllDatabaseConfigs(): DatabaseConfigEntry[] {
+        if (!this.db) this.ensureDb();
+        const rows = this.db!.query('SELECT name, config FROM db_configs').all() as { name: string; config: string }[];
+        return rows.map(row => ({
+            name: row.name,
+            config: JSON.parse(row.config)
+        }));
+    }
+
+    public getDatabaseConfig(name: string): DatabaseConfigEntry | null {
+        if (!this.db) this.ensureDb();
+        const row = this.db!.query('SELECT name, config FROM db_configs WHERE name = ?').get([name]) as { name: string; config: string } | undefined;
+        if (!row) return null;
+        return { name: row.name, config: JSON.parse(row.config) };
+    }
+
+    public addOrUpdateDatabaseConfig(entry: DatabaseConfigEntry): void {
+        if (!this.db) this.ensureDb();
+        this.db!.run(
+            'INSERT OR REPLACE INTO db_configs (name, config) VALUES (?, ?)',
+            [entry.name, JSON.stringify(entry.config)]
+        );
+        this.logger.info(`Database config '${entry.name}' saved.`);
+    }
+
+    public removeDatabaseConfig(name: string): void {
+        if (!this.db) this.ensureDb();
+        this.db!.run('DELETE FROM db_configs WHERE name = ?', [name]);
+        this.logger.info(`Database config '${name}' removed.`);
+    }
+
+    /**
+     * Remplace toutes les configs BDD par la liste fournie (reset complet)
+     */
+    public setAllDatabaseConfigs(entries: DatabaseConfigEntry[]): void {
+        if (!this.db) this.ensureDb();
+        this.db!.run('DELETE FROM db_configs');
+        for (const entry of entries) {
+            this.addOrUpdateDatabaseConfig(entry);
+        }
+        this.logger.info(`All database configs replaced (${entries.length} entries).`);
+    }
+
+    // --- App & Security config (inchangé) ---
 
     private loadAppConfig(): AppConfig {
         return {
@@ -67,7 +142,7 @@ class ConfigManager {
             CORS_ORIGINS: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['*'],
             API_VERSION: process.env.API_VERSION || 'v1',
             RATE_LIMIT: {
-                WINDOW_MS: this.parseNumber(process.env.RATE_LIMIT_WINDOW_MS, 900000), // 15 minutes
+                WINDOW_MS: this.parseNumber(process.env.RATE_LIMIT_WINDOW_MS, 900000),
                 MAX_REQUESTS: this.parseNumber(process.env.RATE_LIMIT_MAX_REQUESTS, 100)
             }
         };
@@ -98,38 +173,24 @@ class ConfigManager {
         return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     }
 
-    private getEnvPrefixes(prefix: string): string[] {
-        return Object.keys(process.env)
-            .filter(key => key.startsWith(prefix))
-            .map(key => key.split('_').slice(0, 2).join('_') + '_')
-            .filter((value, index, self) => self.indexOf(value) === index);
-    }
-
     private validateConfig(): void {
         const errors: string[] = [];
 
-        // Validate APP config
         if (this.APP.PORT < 1 || this.APP.PORT > 65535) {
             errors.push('APP_PORT must be between 1 and 65535');
         }
-
         if (!['development', 'production', 'test'].includes(this.APP.ENV)) {
             this.logger.warn(`Unknown environment: ${this.APP.ENV}`);
         }
-
         if (!['debug', 'info', 'warn', 'error'].includes(this.APP.LOG_LEVEL)) {
             errors.push('LOG_LEVEL must be one of: debug, info, warn, error');
         }
-
-        // Validate SECURITY config
         if (this.SECURITY.JWT_SECRET.length < 32) {
             this.logger.warn('JWT_SECRET should be at least 32 characters long');
         }
-
         if (this.SECURITY.BCRYPT_ROUNDS < 10) {
             this.logger.warn('BCRYPT_ROUNDS should be at least 10 for security');
         }
-
         if (errors.length > 0) {
             this.logger.error('Configuration validation failed:');
             errors.forEach(error => this.logger.error(`  - ${error}`));
@@ -158,6 +219,5 @@ class ConfigManager {
     }
 }
 
-// Export singleton instance
 const configManager = ConfigManager.getInstance();
 export default configManager;

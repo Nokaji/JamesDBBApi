@@ -72,7 +72,6 @@ class Database {
             await this.connection.authenticate();
             this.isConnected = true;
             this.logger.info(`Connected to ${this.config.dialect} database successfully`);
-            // Génération automatique des modèles à la connexion
             await this.generateModels();
         } catch (error) {
             this.isConnected = false;
@@ -132,8 +131,65 @@ class Database {
 }
 
 class DatabaseManager {
+    private retryIntervalMs: number = 5000; // 30 secondes par défaut
+    private retryTimer: NodeJS.Timeout | null = null;
+
+    /**
+     * Lance le retry automatique périodique pour les bases en échec.
+     * Peut être appelé une seule fois au démarrage de l'app.
+     */
+    public startAutoRetry(intervalMs?: number) {
+        if (this.retryTimer) return; // déjà lancé
+        this.logger.info(`[AutoRetry] Démarrage du retry automatique pour les bases en échec...`);
+        if (intervalMs) this.retryIntervalMs = intervalMs;
+        this.retryTimer = setInterval(async () => {
+            if (this.retryDatabases.size > 0) {
+                this.logger.info(`[AutoRetry] Tentative de reconnexion des bases en échec...`);
+                const result = await this.retryFailedDatabases();
+                if (result.ok.length > 0) {
+                    this.logger.info(`[AutoRetry] Bases reconnectées : ${result.ok.join(', ')}`);
+                }
+                if (result.failed.length > 0) {
+                    this.logger.debug(`[AutoRetry] Toujours en échec : ${result.failed.join(', ')}`);
+                }
+            }
+        }, this.retryIntervalMs);
+    }
+
+    /**
+     * Arrête le retry automatique périodique.
+     */
+    public stopAutoRetry() {
+        if (this.retryTimer) {
+            clearInterval(this.retryTimer);
+            this.retryTimer = null;
+        }
+    }
+    /**
+     * Tente de reconnecter toutes les bases de données en échec (présentes dans retryDatabases).
+     * Si la reconnexion réussit, la base est replacée dans databases et retirée de retryDatabases.
+     * Retourne un objet { ok: string[], failed: string[] }
+     */
+    public async retryFailedDatabases(): Promise<{ ok: string[]; failed: string[] }> {
+        const ok: string[] = [];
+        const failed: string[] = [];
+        for (const [name, db] of this.retryDatabases.entries()) {
+            try {
+                await db.connect();
+                this.databases.set(name, db);
+                this.retryDatabases.delete(name);
+                this.logger.info(`Database '${name}' reconnected successfully`);
+                ok.push(name);
+            } catch (error) {
+                this.logger.warn(`Retry failed for database '${name}': ${error}`);
+                failed.push(name);
+            }
+        }
+        return { ok, failed };
+    }
     private static instance: DatabaseManager;
     private databases: Map<string, Database> = new Map();
+    private retryDatabases: Map<string, Database> = new Map();
     private logger: Logging;
 
     private constructor() {
@@ -151,7 +207,16 @@ class DatabaseManager {
         try {
             const database = new Database(config);
             configManager.addOrUpdateDatabaseConfig({ name, config });
-            await database.connect();
+            try {
+                await database.connect();
+                if (this.retryDatabases.has(name)) {
+                    await database.generateModels(); // Rafraîchir les modèles après reconnexion
+                    this.retryDatabases.delete(name);
+                }
+            } catch (error) {
+                this.retryDatabases.set(name, database);
+                throw error;
+            }
             this.databases.set(name, database);
             this.logger.info(`Database '${name}' added and connected successfully`);
         } catch (error) {
@@ -169,7 +234,13 @@ class DatabaseManager {
         }
         const database = new Database(config);
         this.databases.set(name, database);
-        await database.connect(); // Connect the new database
+        try {
+            await database.connect();
+        }
+        catch (error) {
+            this.retryDatabases.set(name, database);
+            throw error;
+        }
         this.logger.info(`Database '${name}' set successfully`);
     }
 

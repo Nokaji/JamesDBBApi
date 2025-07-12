@@ -29,6 +29,7 @@ class App {
 
     constructor() {
         this.initializeDatabase();
+        this.dbManager.startAutoRetry();
         this.initRouter();
         this.initServer();
     }

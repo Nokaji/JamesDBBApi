@@ -120,8 +120,9 @@ _database.post("/connect", async (c) => {
 
         // Vérifier si la base de données existe déjà
         if (dbManager.getDatabaseNames().includes(name)) {
+            await dbManager.addDatabase(name, config);
             return c.json({
-                error: `Database '${name}' already exists`,
+                error: `Database '${name}' already exists and updated successfully`,
                 existing_databases: dbManager.getDatabaseNames()
             }, 409);
         }

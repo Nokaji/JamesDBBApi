@@ -1,3 +1,6 @@
+
+> ⚠️ **Project under active development**: Some features may be incomplete, unstable, or not working as expected. Please open an issue for any bug or suggestion!
+
 # JamesDbApi
 
 A robust and modern database management API built with Hono, Sequelize, and TypeScript. JamesDbApi provides a powerful RESTful interface to manage multiple databases, create dynamic schemas, and execute queries securely.

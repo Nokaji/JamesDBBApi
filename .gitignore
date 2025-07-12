@@ -7,7 +7,6 @@ data
 dist
 *.tgz
 
-bun.lock
 dist
 
 # code coverage

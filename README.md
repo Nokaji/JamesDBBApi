@@ -39,9 +39,15 @@ A robust and modern database management API built with Hono, Sequelize, and Type
 
 ### Quick Installation
 
+Not using Bun yet ?
+```bash
+Windows : powershell -c "irm bun.sh/install.ps1 | iex"
+Linux/Macos : curl -fsSL https://bun.sh/install | bash
+```
+
 ```bash
 # Clone the project
-git clone <repository-url>
+git clone https://github.com/Nokaji/JamesDBBApi
 cd JamesDBBApi
 
 # Install dependencies
@@ -68,14 +74,6 @@ API_VERSION=v1
 # Primary database (SQLite by default)
 DB_DIALECT=sqlite
 SQLITE_PATH=./data/james.db
-
-# For PostgreSQL
-# DB_DIALECT=postgres
-# DB_HOST=localhost
-# DB_PORT=5432
-# DB_USER=postgres
-# DB_PASSWORD=password
-# DB_NAME=james_db
 
 # Security
 JWT_SECRET=your-super-secret-jwt-key-here

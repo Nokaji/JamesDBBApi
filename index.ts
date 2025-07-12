@@ -238,7 +238,7 @@ class App {
         this.app.get("/", (c) => {
             const appInfo = ConfigManager.getAppInfo();
             return c.json({
-                message: "Welcome to JamesDbApi",
+                message: "Welcome to JamesDBBApi",
                 ...appInfo,
                 documentation: "/docs",
                 api: "/api",

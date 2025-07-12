@@ -1,3 +1,41 @@
+/**
+ * Ajoute dynamiquement les associations Sequelize (belongsTo/hasMany) à partir des foreign keys SQL.
+ * @param sequelize Instance Sequelize connectée
+ * @param registry Dictionnaire des modèles Sequelize (tableName -> Model)
+ */
+export async function autoAssociateFromForeignKeys(sequelize: Sequelize, registry: ModelRegistry) {
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = await queryInterface.showAllTables();
+    for (const tableName of tables) {
+        // Récupère les foreign keys de la table
+        let fks: any[] = [];
+        try {
+            const rawFks = await queryInterface.getForeignKeyReferencesForTable(tableName);
+            if (Array.isArray(rawFks)) {
+                fks = rawFks;
+            } else if (rawFks && typeof rawFks === 'object') {
+                fks = Object.values(rawFks);
+            } else {
+                fks = [];
+            }
+        } catch (e) {
+            // Certains dialectes n'implémentent pas cette méthode (ex: sqlite, parfois mssql, ou selon la version du dialecte utilisé)
+            continue;
+        }
+        for (const fk of fks) {
+            const sourceModel = registry[tableName];
+            const targetModel = registry[fk.referencedTableName];
+            if (!sourceModel || !targetModel) continue;
+            // belongsTo côté source, hasMany côté cible
+            if (!sourceModel.associations || !sourceModel.associations[fk.referencedTableName]) {
+                sourceModel.belongsTo(targetModel, { foreignKey: fk.columnName, targetKey: fk.referencedColumnName });
+            }
+            if (!targetModel.associations || !targetModel.associations[tableName]) {
+                targetModel.hasMany(sourceModel, { foreignKey: fk.columnName, sourceKey: fk.referencedColumnName });
+            }
+        }
+    }
+}
 import { DataTypes, Sequelize, ModelAttributeColumnOptions } from 'sequelize';
 
 interface Column {
@@ -349,42 +387,75 @@ class SchemaConverter {
         const errors: string[] = [];
         const tableNames = schemas.map(s => s.table_name);
 
+        // Helper pour trouver une colonne
+        const findColumn = (schema: TableSchema | undefined, colName: string) =>
+            schema?.columns.find(col => col.name === colName);
+
         schemas.forEach(schema => {
             if (!schema.relations) return;
 
             schema.relations.forEach((relation, index) => {
-                // Check if target table exists
-                if (!tableNames.includes(relation.target)) {
+                // 1. Vérifie que la table cible existe
+                const targetSchema = schemas.find(s => s.table_name === relation.target);
+                if (!targetSchema) {
                     errors.push(`${schema.table_name}: Relation ${index} references non-existent table '${relation.target}'`);
+                    return;
                 }
 
-                // Check belongsToMany has through table
-                if (relation.type === 'belongsToMany' && !relation.through) {
-                    errors.push(`${schema.table_name}: belongsToMany relation to '${relation.target}' requires 'through' property`);
-                }
-
-                // Check foreignKey exists in appropriate table
-                if (relation.foreignKey) {
-                    let targetSchema: TableSchema | undefined;
-
-                    if (relation.type === 'belongsTo') {
-                        // For belongsTo, foreign key should be in source table
-                        targetSchema = schema;
+                // 2. belongsToMany : vérifie la table de jonction et les clés
+                if (relation.type === 'belongsToMany') {
+                    if (!relation.through) {
+                        errors.push(`${schema.table_name}: belongsToMany relation to '${relation.target}' requires 'through' property`);
                     } else {
-                        // For hasOne/hasMany, foreign key should be in target table
-                        targetSchema = schemas.find(s => s.table_name === relation.target);
-                    }
-
-                    if (targetSchema && !targetSchema.columns.some(col => col.name === relation.foreignKey)) {
-                        errors.push(`${schema.table_name}: Foreign key '${relation.foreignKey}' not found in ${targetSchema.table_name}`);
+                        const throughSchema = schemas.find(s => s.table_name === relation.through);
+                        if (!throughSchema) {
+                            errors.push(`${schema.table_name}: belongsToMany relation to '${relation.target}' references missing through table '${relation.through}'`);
+                        } else {
+                            // Vérifie que la clé étrangère existe dans la table de jonction
+                            if (relation.foreignKey && !findColumn(throughSchema, relation.foreignKey)) {
+                                errors.push(`${schema.table_name}: belongsToMany relation: foreignKey '${relation.foreignKey}' not found in through table '${relation.through}'`);
+                            }
+                            if (relation.targetKey && !findColumn(throughSchema, relation.targetKey)) {
+                                errors.push(`${schema.table_name}: belongsToMany relation: targetKey '${relation.targetKey}' not found in through table '${relation.through}'`);
+                            }
+                        }
                     }
                 }
 
-                // Check targetKey exists in target table
+                // 3. Vérifie la clé étrangère selon le type de relation
+                if (relation.foreignKey) {
+                    let fkSchema: TableSchema | undefined;
+                    if (relation.type === 'belongsTo') {
+                        fkSchema = schema;
+                    } else if (relation.type === 'hasOne' || relation.type === 'hasMany') {
+                        fkSchema = targetSchema;
+                    }
+                    if (fkSchema && !findColumn(fkSchema, relation.foreignKey)) {
+                        errors.push(`${schema.table_name}: Foreign key '${relation.foreignKey}' not found in ${fkSchema.table_name}`);
+                    }
+                }
+
+                // 4. Vérifie la clé cible dans la table cible
                 if (relation.targetKey) {
-                    const targetSchema = schemas.find(s => s.table_name === relation.target);
-                    if (targetSchema && !targetSchema.columns.some(col => col.name === relation.targetKey)) {
+                    if (!findColumn(targetSchema, relation.targetKey)) {
                         errors.push(`${schema.table_name}: Target key '${relation.targetKey}' not found in '${relation.target}'`);
+                    }
+                }
+
+                // 5. Vérifie la compatibilité des types de colonnes (foreignKey/targetKey)
+                if (relation.foreignKey && relation.targetKey) {
+                    let fkSchema: TableSchema | undefined;
+                    if (relation.type === 'belongsTo') {
+                        fkSchema = schema;
+                    } else if (relation.type === 'hasOne' || relation.type === 'hasMany') {
+                        fkSchema = targetSchema;
+                    } else if (relation.type === 'belongsToMany' && relation.through) {
+                        fkSchema = schemas.find(s => s.table_name === relation.through);
+                    }
+                    const fkCol = findColumn(fkSchema, relation.foreignKey);
+                    const targetCol = findColumn(targetSchema, relation.targetKey);
+                    if (fkCol && targetCol && fkCol.type !== targetCol.type) {
+                        errors.push(`${schema.table_name}: Type mismatch between foreignKey '${relation.foreignKey}' (${fkCol.type}) and targetKey '${relation.targetKey}' (${targetCol.type}) in relation to '${relation.target}'`);
                     }
                 }
             });
@@ -647,5 +718,5 @@ export {
     Column,
     ConversionOptions,
     TableRelation,
-    ModelRegistry
+    ModelRegistry,
 };

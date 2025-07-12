@@ -329,7 +329,38 @@ _database.post('/:database/get/:table', async (c) => {
 
         // Construction de l'option Sequelize
         const options: any = {};
-        if (columns && Array.isArray(columns)) options.attributes = columns;
+        let attributes: string[] = [];
+        let dynamicInclude: any[] = [];
+
+        if (columns && Array.isArray(columns)) {
+            for (const col of columns) {
+                if (typeof col === 'string' && col.includes('.')) {
+                    const [relation, relCol] = col.split('.');
+                    // Résolution du nom d'association réel
+                    let assocName = relation;
+                    if (!model.associations[relation]) {
+                        // Cherche une association dont le modèle cible correspond
+                        const found = Object.entries(model.associations).find(([key, assoc]) => {
+                            return assoc.target && assoc.target.name && assoc.target.name.toLowerCase() === relation.toLowerCase();
+                        });
+                        if (found) assocName = found[0];
+                    }
+                    // Cherche si déjà dans include
+                    let inc = dynamicInclude.find(i => i.association === assocName || i.model?.name === assocName);
+                    if (!inc) {
+                        inc = { association: assocName, attributes: [relCol] };
+                        dynamicInclude.push(inc);
+                    } else {
+                        if (!inc.attributes.includes(relCol)) inc.attributes.push(relCol);
+                    }
+                } else {
+                    attributes.push(col);
+                }
+            }
+            if (attributes.length > 0) options.attributes = attributes;
+            if (dynamicInclude.length > 0) options.include = dynamicInclude;
+        }
+
         if (where && typeof where === 'object') {
             // Nettoyer les clés dont la valeur est un objet vide
             options.where = Object.fromEntries(
@@ -339,7 +370,10 @@ _database.post('/:database/get/:table', async (c) => {
                 })
             );
         }
-        if (include && Array.isArray(include)) options.include = include;
+
+        if (include && Array.isArray(include)) {
+            options.include = (options.include || []).concat(include);
+        }
         if (typeof limit === 'number') options.limit = limit;
         if (typeof offset === 'number') options.offset = offset;
         if (order) options.order = order;

@@ -16,8 +16,9 @@ class Database {
      * Retourne un ModelRegistry (clé = nom de table, valeur = modèle Sequelize)
      */
     public async generateModels(): Promise<{ [tableName: string]: any }> {
-        const { generateModelsFromDatabase } = await import("../utils/convert.ts");
+        const { generateModelsFromDatabase, autoAssociateFromForeignKeys } = await import("../utils/convert.ts");
         this.models = await generateModelsFromDatabase(this.connection);
+        await autoAssociateFromForeignKeys(this.connection, this.models);
         return this.models;
     }
 

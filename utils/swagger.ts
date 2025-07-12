@@ -651,44 +651,6 @@ export const generateSwaggerSpec = () => {
                         }
                     }
                 },
-                post: {
-                    summary: "Connect to database",
-                    description: "Connect to a new database",
-                    tags: ["Database"],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: { $ref: "#/components/schemas/DatabaseConfig" }
-                            }
-                        }
-                    },
-                    responses: {
-                        "201": {
-                            description: "Database connected successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            database: { type: "string" },
-                                            message: { type: "string" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "400": {
-                            description: "Invalid configuration",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
             },
             "/api/_database/health": {
                 get: {

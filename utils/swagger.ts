@@ -661,56 +661,6 @@ export const generateSwaggerSpec = () => {
                     }
                 }
             },
-            "/api/_schema/convert": {
-                post: {
-                    summary: "Convert data types",
-                    description: "Convert between different data type formats",
-                    tags: ["Schema"],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    type: "object",
-                                    properties: {
-                                        from_type: {
-                                            type: "string",
-                                            description: "Source data type format",
-                                            enum: ["sequelize", "mysql", "postgres", "sqlite", "json"]
-                                        },
-                                        to_type: {
-                                            type: "string",
-                                            description: "Target data type format",
-                                            enum: ["sequelize", "mysql", "postgres", "sqlite", "json"]
-                                        },
-                                        schema: {
-                                            description: "Schema to convert"
-                                        }
-                                    },
-                                    required: ["from_type", "to_type", "schema"]
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Conversion result",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            converted_schema: { type: "object" },
-                                            warnings: { type: "array" }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
             "/api/_schema/databases": {
                 get: {
                     summary: "List databases",

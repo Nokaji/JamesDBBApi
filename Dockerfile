@@ -30,7 +30,7 @@ FROM base AS builder
 ENV NODE_ENV=production
 
 # Installer toutes les dépendances (y compris dev pour build)
-RUN bun install --frozen-lockfile --production=false
+RUN bun install --frozen-lockfile
 
 # Copier le code source
 COPY . .
@@ -39,7 +39,7 @@ COPY . .
 RUN bun run build || echo "No build script found, skipping..."
 
 # Nettoyer les dev dependencies
-RUN bun install --frozen-lockfile --production=true
+RUN bun install --frozen-lockfile
 
 # Stage de production
 FROM base AS production

@@ -243,18 +243,6 @@ export const generateSwaggerSpec = () => {
                         }
                     }
                 },
-                ConnectionRequest: {
-                    type: "object",
-                    properties: {
-                        name: {
-                            type: "string",
-                            description: "Connection name",
-                            example: "production_db"
-                        },
-                        config: { $ref: "#/components/schemas/DatabaseConfig" }
-                    },
-                    required: ["name", "config"]
-                },
                 ConnectionResponse: {
                     type: "object",
                     properties: {
@@ -269,48 +257,6 @@ export const generateSwaggerSpec = () => {
             }
         },
         paths: {
-            "/api/_database/connect": {
-                post: {
-                    summary: "Connect to a database",
-                    description: "Establish a new database connection.",
-                    tags: ["Database"],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    $ref: "#/components/schemas/ConnectionRequest"
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "201": {
-                            description: "Database connected successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            database: { type: "string" },
-                                            message: { type: "string" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "400": {
-                            description: "Invalid configuration",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
             "/": {
                 get: {
                     summary: "Root endpoint",
@@ -371,6 +317,139 @@ export const generateSwaggerSpec = () => {
                     }
                 }
             },
+
+            "/api/auth/login": {
+                post: {
+                    summary: "User login",
+                    description: "Authenticate user and get access token",
+                    tags: ["Authentication"],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: { $ref: "#/components/schemas/LoginRequest" }
+                            }
+                        }
+                    },
+                    responses: {
+                        "200": {
+                            description: "Login successful",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/LoginResponse" }
+                                }
+                            }
+                        },
+                        "401": {
+                            description: "Invalid credentials",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        },
+                        "429": {
+                            description: "Too many login attempts",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/auth/logout": {
+                post: {
+                    summary: "User logout",
+                    description: "Invalidate user session",
+                    tags: ["Authentication"],
+                    security: [{ "bearerAuth": [] }],
+                    responses: {
+                        "200": {
+                            description: "Logout successful",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            message: { type: "string" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "401": {
+                            description: "Not authenticated",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/auth/me": {
+                get: {
+                    summary: "Get current user",
+                    description: "Get information about the currently authenticated user",
+                    tags: ["Authentication"],
+                    security: [{ "bearerAuth": [] }],
+                    responses: {
+                        "200": {
+                            description: "User information",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/User" }
+                                }
+                            }
+                        },
+                        "401": {
+                            description: "Not authenticated",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/auth/refresh": {
+                post: {
+                    summary: "Refresh token",
+                    description: "Refresh the access token",
+                    tags: ["Authentication"],
+                    security: [{ "bearerAuth": [] }],
+                    responses: {
+                        "200": {
+                            description: "Token refreshed",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            token: { type: "string" },
+                                            expires_in: { type: "number" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "401": {
+                            description: "Invalid or expired token",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "/api/_schema": {
                 get: {
                     summary: "Schema operations",
@@ -386,6 +465,244 @@ export const generateSwaggerSpec = () => {
                                         properties: {
                                             operations: { type: "array" },
                                             databases: { type: "array" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/_schema/{dbName}": {
+                get: {
+                    summary: "Get database schema",
+                    description: "Retrieve schema information for a specific database",
+                    tags: ["Schema"],
+                    parameters: [
+                        {
+                            name: "dbName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Database name"
+                        }
+                    ],
+                    responses: {
+                        "200": {
+                            description: "Database schema information",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            database: { type: "string" },
+                                            tables: { type: "array" },
+                                            relations: { type: "array" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "404": {
+                            description: "Database not found",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/_schema/{dbName}/create": {
+                post: {
+                    summary: "Create table from schema",
+                    description: "Create a new table based on schema definition",
+                    tags: ["Schema"],
+                    parameters: [
+                        {
+                            name: "dbName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Database name"
+                        }
+                    ],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    $ref: "#/components/schemas/TableSchema",
+                                    example: {
+                                        table_name: "users",
+                                        columns: [
+                                            {
+                                                name: "id",
+                                                type: "integer",
+                                                primary_key: true,
+                                                auto_increment: true
+                                            },
+                                            {
+                                                name: "email",
+                                                type: "email",
+                                                unique: true,
+                                                nullable: false
+                                            },
+                                            {
+                                                name: "name",
+                                                type: "string",
+                                                length: 100,
+                                                nullable: false
+                                            },
+                                            {
+                                                name: "created_at",
+                                                type: "timestamp",
+                                                default_value: "CURRENT_TIMESTAMP"
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    responses: {
+                        "201": {
+                            description: "Table created successfully",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            table: { type: "string" },
+                                            message: { type: "string" },
+                                            columns_created: { type: "number" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            description: "Invalid schema",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        },
+                        "404": {
+                            description: "Database not found",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        },
+                        "409": {
+                            description: "Table already exists",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/_schema/{dbName}/validate": {
+                post: {
+                    summary: "Validate schema",
+                    description: "Validate a table schema without creating it",
+                    tags: ["Schema"],
+                    parameters: [
+                        {
+                            name: "dbName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Database name"
+                        }
+                    ],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: { $ref: "#/components/schemas/TableSchema" }
+                            }
+                        }
+                    },
+                    responses: {
+                        "200": {
+                            description: "Schema validation result",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            valid: { type: "boolean" },
+                                            errors: {
+                                                type: "array",
+                                                items: { type: "string" }
+                                            },
+                                            warnings: {
+                                                type: "array",
+                                                items: { type: "string" }
+                                            },
+                                            suggestions: {
+                                                type: "array",
+                                                items: { type: "string" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/_schema/convert": {
+                post: {
+                    summary: "Convert data types",
+                    description: "Convert between different data type formats",
+                    tags: ["Schema"],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        from_type: {
+                                            type: "string",
+                                            description: "Source data type format",
+                                            enum: ["sequelize", "mysql", "postgres", "sqlite", "json"]
+                                        },
+                                        to_type: {
+                                            type: "string",
+                                            description: "Target data type format",
+                                            enum: ["sequelize", "mysql", "postgres", "sqlite", "json"]
+                                        },
+                                        schema: {
+                                            description: "Schema to convert"
+                                        }
+                                    },
+                                    required: ["from_type", "to_type", "schema"]
+                                }
+                            }
+                        }
+                    },
+                    responses: {
+                        "200": {
+                            description: "Conversion result",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            converted_schema: { type: "object" },
+                                            warnings: { type: "array" }
                                         }
                                     }
                                 }
@@ -652,6 +969,29 @@ export const generateSwaggerSpec = () => {
                     }
                 },
             },
+
+            "/api/_database/config": {
+                get: {
+                    summary: "Get database config",
+                    description: "Get configuration for all databases",
+                    tags: ["Database"],
+                    responses: {
+                        "200": {
+                            description: "Database config",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            configs: { type: "object" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "/api/_database/health": {
                 get: {
                     summary: "Database health",
@@ -670,38 +1010,6 @@ export const generateSwaggerSpec = () => {
                 }
             },
             "/api/_database/{name}": {
-                delete: {
-                    summary: "Disconnect database",
-                    description: "Disconnect and remove a database connection",
-                    tags: ["Database"],
-                    parameters: [
-                        { name: "name", in: "path", required: true, schema: { type: "string" }, description: "Database name" }
-                    ],
-                    responses: {
-                        "200": {
-                            description: "Database disconnected",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            message: { type: "string" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Database not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                },
                 get: {
                     summary: "Get database info",
                     description: "Get information about a specific database",
@@ -723,6 +1031,81 @@ export const generateSwaggerSpec = () => {
                                             port: { type: "number" },
                                             database: { type: "string" },
                                             user: { type: "string" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "404": {
+                            description: "Database not found",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                },
+                post: {
+                    summary: "Connect to a database",
+                    description: "Establish a new database connection.",
+                    tags: ["Database"],
+                    parameters: [
+                        { name: "name", in: "path", required: true, schema: { type: "string" }, description: "Database name" }
+                    ],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    $ref: "#/components/schemas/DatabaseConfig"
+                                }
+                            }
+                        }
+                    },
+                    responses: {
+                        "201": {
+                            description: "Database connected successfully",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            database: { type: "string" },
+                                            message: { type: "string" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            description: "Invalid configuration",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                },
+                delete: {
+                    summary: "Disconnect database",
+                    description: "Disconnect and remove a database connection",
+                    tags: ["Database"],
+                    parameters: [
+                        { name: "name", in: "path", required: true, schema: { type: "string" }, description: "Database name" }
+                    ],
+                    responses: {
+                        "200": {
+                            description: "Database disconnected",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            message: { type: "string" }
                                         }
                                     }
                                 }
@@ -777,28 +1160,259 @@ export const generateSwaggerSpec = () => {
                     }
                 }
             },
-            "/api/_database/config": {
-                get: {
-                    summary: "Get database config",
-                    description: "Get configuration for all databases",
+
+            "/api/_database/{dbName}/get/{tableName}": {
+                post: {
+                    summary: "Get table data",
+                    description: "Get data from a specific table in a database",
                     tags: ["Database"],
+                    parameters: [
+                        {
+                            name: "dbName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Database name"
+                        },
+                        {
+                            name: "tableName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Table name"
+                        },
+                    ],
+                    requestBody: {
+                        required: false,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        where: {
+                                            type: "object",
+                                            additionalProperties: true,
+                                            description: "Filter conditions for the query"
+                                        },
+                                        order: {
+                                            type: "array",
+                                            items: {
+                                                type: "array",
+                                                items: [
+                                                    { type: "string", description: "Column name" },
+                                                    { type: "string", enum: ["ASC", "DESC"], description: "Sort direction" }
+                                                ],
+                                                description: "Sorting order for the results"
+                                            },
+                                            description: "Order by conditions"
+                                        },
+                                        columns: {
+                                            type: "array",
+                                            items: { type: "string" },
+                                            description: "List of columns to select"
+                                        },
+                                        limit: {
+                                            type: "integer",
+                                            description: "Maximum number of rows to return",
+                                            default: 100
+                                        },
+                                        offset: {
+                                            type: "integer",
+                                            description: "Number of rows to skip before starting to return rows",
+                                            default: 0
+                                        }
+                                    },
+                                    additionalProperties: false,
+                                    description: "Query options for filtering, sorting and selecting columns"
+                                }
+                            }
+                        }
+                    },
                     responses: {
                         "200": {
-                            description: "Database config",
+                            description: "Table data retrieved successfully",
                             content: {
                                 "application/json": {
                                     schema: {
                                         type: "object",
                                         properties: {
-                                            configs: { type: "object" }
+                                            success: { type: "boolean" },
+                                            data: {
+                                                type: "array",
+                                                items: {
+                                                    type: "object",
+                                                    additionalProperties: true,
+                                                    description: "Rows from the table"
+                                                }
+                                            },
+                                            count: {
+                                                type: "number",
+                                                description: "Total number of rows in the table"
+                                            },
+                                            columns: {
+                                                type: "array",
+                                                items: {
+                                                    type: "object",
+                                                    properties: {
+                                                        name: { type: "string", description: "Column name" },
+                                                        type: { type: "string", description: "Column data type" },
+                                                        nullable: { type: "boolean", description: "Is column nullable" },
+                                                        default: { type: "string", description: "Default value" }
+                                                    }
+                                                },
+                                                description: "List of columns in the table"
+                                            }
                                         }
                                     }
+                                }
+                            }
+                        },
+                        "404": {
+                            description: "Database or table not found",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
                                 }
                             }
                         }
                     }
                 }
             },
+            "/api/_database/{dbName}/update/{tableName}": {
+                post: {
+                    summary: "Update table data",
+                    description: "Update rows in a specific table in a database",
+                    tags: ["Database"],
+                    parameters: [
+                        {
+                            name: "dbName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Database name"
+                        },
+                        {
+                            name: "tableName",
+                            in: "path",
+                            required: true,
+                            schema: { type: "string" },
+                            description: "Table name"
+                        }
+                    ],
+                    requestBody: {
+                        required: true,
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        values: {
+                                            type: "object",
+                                            additionalProperties: true,
+                                            description: "Key-value pairs of columns to update"
+                                        },
+                                        where: {
+                                            type: "object",
+                                            additionalProperties: true,
+                                            description: "Filter conditions to select rows to update"
+                                        }
+                                    },
+                                    required: ["values"],
+                                    additionalProperties: false,
+                                    description: "Update options: values to set and optional filter"
+                                }
+                            }
+                        }
+                    },
+                    responses: {
+                        "200": {
+                            description: "Rows updated successfully",
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        type: "object",
+                                        properties: {
+                                            success: { type: "boolean" },
+                                            affectedRows: { type: "number" },
+                                            message: { type: "string" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            description: "Invalid update request",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        },
+                        "404": {
+                            description: "Database or table not found",
+                            content: {
+                                "application/json": {
+                                    schema: { $ref: "#/components/schemas/Error" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            // "/api/_database/{dbName}/backup": {
+            //     post: {
+            //         summary: "Create backup",
+            //         description: "Create a backup of the database",
+            //         tags: ["Database"],
+            //         parameters: [
+            //             {
+            //                 name: "dbName",
+            //                 in: "path",
+            //                 required: true,
+            //                 schema: { type: "string" },
+            //                 description: "Database name"
+            //             }
+            //         ],
+            //         requestBody: {
+            //             content: {
+            //                 "application/json": {
+            //                     schema: {
+            //                         type: "object",
+            //                         properties: {
+            //                             filename: {
+            //                                 type: "string",
+            //                                 description: "Custom backup filename (optional)"
+            //                             },
+            //                             compression: {
+            //                                 type: "boolean",
+            //                                 description: "Compress backup file",
+            //                                 default: true
+            //                             }
+            //                         }
+            //                     }
+            //                 }
+            //             }
+            //         },
+            //         responses: {
+            //             "200": {
+            //                 description: "Backup created successfully",
+            //                 content: {
+            //                     "application/json": {
+            //                         schema: {
+            //                             type: "object",
+            //                             properties: {
+            //                                 success: { type: "boolean" },
+            //                                 filename: { type: "string" },
+            //                                 size: { type: "number" },
+            //                                 timestamp: { type: "number" }
+            //                             }
+            //                         }
+            //                     }
+            //                 }
+            //             }
+            //         }
+            //     }
+            // },
             "/api/_relations/{database}/create-with-relations": {
                 post: {
                     summary: "Create tables with relations",
@@ -839,244 +1453,6 @@ export const generateSwaggerSpec = () => {
                             content: {
                                 "application/json": {
                                     schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_schema/{dbName}": {
-                get: {
-                    summary: "Get database schema",
-                    description: "Retrieve schema information for a specific database",
-                    tags: ["Schema"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        }
-                    ],
-                    responses: {
-                        "200": {
-                            description: "Database schema information",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            database: { type: "string" },
-                                            tables: { type: "array" },
-                                            relations: { type: "array" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Database not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_schema/{dbName}/create": {
-                post: {
-                    summary: "Create table from schema",
-                    description: "Create a new table based on schema definition",
-                    tags: ["Schema"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        }
-                    ],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    $ref: "#/components/schemas/TableSchema",
-                                    example: {
-                                        table_name: "users",
-                                        columns: [
-                                            {
-                                                name: "id",
-                                                type: "integer",
-                                                primary_key: true,
-                                                auto_increment: true
-                                            },
-                                            {
-                                                name: "email",
-                                                type: "email",
-                                                unique: true,
-                                                nullable: false
-                                            },
-                                            {
-                                                name: "name",
-                                                type: "string",
-                                                length: 100,
-                                                nullable: false
-                                            },
-                                            {
-                                                name: "created_at",
-                                                type: "timestamp",
-                                                default_value: "CURRENT_TIMESTAMP"
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "201": {
-                            description: "Table created successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            table: { type: "string" },
-                                            message: { type: "string" },
-                                            columns_created: { type: "number" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "400": {
-                            description: "Invalid schema",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Database not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "409": {
-                            description: "Table already exists",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_schema/{dbName}/validate": {
-                post: {
-                    summary: "Validate schema",
-                    description: "Validate a table schema without creating it",
-                    tags: ["Schema"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        }
-                    ],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: { $ref: "#/components/schemas/TableSchema" }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Schema validation result",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            valid: { type: "boolean" },
-                                            errors: {
-                                                type: "array",
-                                                items: { type: "string" }
-                                            },
-                                            warnings: {
-                                                type: "array",
-                                                items: { type: "string" }
-                                            },
-                                            suggestions: {
-                                                type: "array",
-                                                items: { type: "string" }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_schema/convert": {
-                post: {
-                    summary: "Convert data types",
-                    description: "Convert between different data type formats",
-                    tags: ["Schema"],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    type: "object",
-                                    properties: {
-                                        from_type: {
-                                            type: "string",
-                                            description: "Source data type format",
-                                            enum: ["sequelize", "mysql", "postgres", "sqlite", "json"]
-                                        },
-                                        to_type: {
-                                            type: "string",
-                                            description: "Target data type format",
-                                            enum: ["sequelize", "mysql", "postgres", "sqlite", "json"]
-                                        },
-                                        schema: {
-                                            description: "Schema to convert"
-                                        }
-                                    },
-                                    required: ["from_type", "to_type", "schema"]
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Conversion result",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            converted_schema: { type: "object" },
-                                            warnings: { type: "array" }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -1256,278 +1632,6 @@ export const generateSwaggerSpec = () => {
                     }
                 }
             },
-            "/api/auth/login": {
-                post: {
-                    summary: "User login",
-                    description: "Authenticate user and get access token",
-                    tags: ["Authentication"],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: { $ref: "#/components/schemas/LoginRequest" }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Login successful",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/LoginResponse" }
-                                }
-                            }
-                        },
-                        "401": {
-                            description: "Invalid credentials",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "429": {
-                            description: "Too many login attempts",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/auth/logout": {
-                post: {
-                    summary: "User logout",
-                    description: "Invalidate user session",
-                    tags: ["Authentication"],
-                    security: [{ "bearerAuth": [] }],
-                    responses: {
-                        "200": {
-                            description: "Logout successful",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            message: { type: "string" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "401": {
-                            description: "Not authenticated",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/auth/me": {
-                get: {
-                    summary: "Get current user",
-                    description: "Get information about the currently authenticated user",
-                    tags: ["Authentication"],
-                    security: [{ "bearerAuth": [] }],
-                    responses: {
-                        "200": {
-                            description: "User information",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/User" }
-                                }
-                            }
-                        },
-                        "401": {
-                            description: "Not authenticated",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/auth/refresh": {
-                post: {
-                    summary: "Refresh token",
-                    description: "Refresh the access token",
-                    tags: ["Authentication"],
-                    security: [{ "bearerAuth": [] }],
-                    responses: {
-                        "200": {
-                            description: "Token refreshed",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            token: { type: "string" },
-                                            expires_in: { type: "number" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "401": {
-                            description: "Invalid or expired token",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/connect": {
-                post: {
-                    summary: "Add database connection",
-                    description: "Add a new database connection to the system",
-                    tags: ["Connection"],
-                    security: [{ "bearerAuth": [] }],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: { $ref: "#/components/schemas/ConnectionRequest" }
-                            }
-                        }
-                    },
-                    responses: {
-                        "201": {
-                            description: "Connection added successfully",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/ConnectionResponse" }
-                                }
-                            }
-                        },
-                        "400": {
-                            description: "Invalid connection configuration",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "401": {
-                            description: "Authentication required",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "403": {
-                            description: "Insufficient permissions",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "409": {
-                            description: "Connection name already exists",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/connect/{connectionName}": {
-                get: {
-                    summary: "Get connection info",
-                    description: "Get information about a specific database connection",
-                    tags: ["Connection"],
-                    security: [{ "bearerAuth": [] }],
-                    parameters: [
-                        {
-                            name: "connectionName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Connection name"
-                        }
-                    ],
-                    responses: {
-                        "200": {
-                            description: "Connection information",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/ConnectionResponse" }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Connection not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                },
-                delete: {
-                    summary: "Remove connection",
-                    description: "Remove a database connection from the system",
-                    tags: ["Connection"],
-                    security: [{ "bearerAuth": [] }],
-                    parameters: [
-                        {
-                            name: "connectionName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Connection name"
-                        }
-                    ],
-                    responses: {
-                        "200": {
-                            description: "Connection removed successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            message: { type: "string" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Connection not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "403": {
-                            description: "Insufficient permissions",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
             "/api/_relations/example": {
                 get: {
                     summary: "Get relations example",
@@ -1554,311 +1658,6 @@ export const generateSwaggerSpec = () => {
                                                     establish_endpoint: { type: "string" }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_database/{dbName}/query": {
-                post: {
-                    summary: "Execute query",
-                    description: "Execute a SQL query on a specific database",
-                    tags: ["Database"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        }
-                    ],
-                    requestBody: {
-                        required: true,
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    type: "object",
-                                    properties: {
-                                        query: {
-                                            type: "string",
-                                            description: "SQL query to execute",
-                                            example: "SELECT * FROM users WHERE active = true"
-                                        },
-                                        params: {
-                                            type: "array",
-                                            description: "Query parameters for prepared statements",
-                                            items: { type: "string" },
-                                            example: ["value1", "value2"]
-                                        }
-                                    },
-                                    required: ["query"]
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Query executed successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            results: {
-                                                type: "array",
-                                                description: "Query results"
-                                            },
-                                            rowsAffected: {
-                                                type: "number",
-                                                description: "Number of rows affected by the query"
-                                            },
-                                            executionTime: {
-                                                type: "number",
-                                                description: "Query execution time in milliseconds"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "400": {
-                            description: "Invalid query",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Database not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_database/{dbName}/get/{tableName}": {
-                post: {
-                    summary: "Get table data",
-                    description: "Get data from a specific table in a database",
-                    tags: ["Database"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        },
-                        {
-                            name: "tableName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Table name"
-                        },
-                    ],
-                    requestBody: {
-                        required: false,
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    type: "object",
-                                    properties: {
-                                        where: {
-                                            type: "object",
-                                            additionalProperties: true,
-                                            description: "Filter conditions for the query"
-                                        },
-                                        order: {
-                                            type: "array",
-                                            items: {
-                                                type: "array",
-                                                items: [
-                                                    { type: "string", description: "Column name" },
-                                                    { type: "string", enum: ["ASC", "DESC"], description: "Sort direction" }
-                                                ],
-                                                description: "Sorting order for the results"
-                                            },
-                                            description: "Order by conditions"
-                                        },
-                                        columns: {
-                                            type: "array",
-                                            items: { type: "string" },
-                                            description: "List of columns to select"
-                                        },
-                                        limit: {
-                                            type: "integer",
-                                            description: "Maximum number of rows to return",
-                                            default: 100
-                                        },
-                                        offset: {
-                                            type: "integer",
-                                            description: "Number of rows to skip before starting to return rows",
-                                            default: 0
-                                        }
-                                    },
-                                    additionalProperties: false,
-                                    description: "Query options for filtering, sorting and selecting columns"
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Table data retrieved successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            data: {
-                                                type: "array",
-                                                items: {
-                                                    type: "object",
-                                                    additionalProperties: true,
-                                                    description: "Rows from the table"
-                                                }
-                                            },
-                                            count: {
-                                                type: "number",
-                                                description: "Total number of rows in the table"
-                                            },
-                                            columns: {
-                                                type: "array",
-                                                items: {
-                                                    type: "object",
-                                                    properties: {
-                                                        name: { type: "string", description: "Column name" },
-                                                        type: { type: "string", description: "Column data type" },
-                                                        nullable: { type: "boolean", description: "Is column nullable" },
-                                                        default: { type: "string", description: "Default value" }
-                                                    }
-                                                },
-                                                description: "List of columns in the table"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Database or table not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_database/{dbName}/tables": {
-                get: {
-                    summary: "List tables",
-                    description: "Get list of all tables in a database",
-                    tags: ["Database"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        }
-                    ],
-                    responses: {
-                        "200": {
-                            description: "List of tables",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            database: { type: "string" },
-                                            tables: {
-                                                type: "array",
-                                                items: {
-                                                    type: "object",
-                                                    properties: {
-                                                        name: { type: "string" },
-                                                        columns: { type: "number" },
-                                                        rows: { type: "number" }
-                                                    }
-                                                }
-                                            },
-                                            count: { type: "number" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "404": {
-                            description: "Database not found",
-                            content: {
-                                "application/json": {
-                                    schema: { $ref: "#/components/schemas/Error" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/api/_database/{dbName}/backup": {
-                post: {
-                    summary: "Create backup",
-                    description: "Create a backup of the database",
-                    tags: ["Database"],
-                    parameters: [
-                        {
-                            name: "dbName",
-                            in: "path",
-                            required: true,
-                            schema: { type: "string" },
-                            description: "Database name"
-                        }
-                    ],
-                    requestBody: {
-                        content: {
-                            "application/json": {
-                                schema: {
-                                    type: "object",
-                                    properties: {
-                                        filename: {
-                                            type: "string",
-                                            description: "Custom backup filename (optional)"
-                                        },
-                                        compression: {
-                                            type: "boolean",
-                                            description: "Compress backup file",
-                                            default: true
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    responses: {
-                        "200": {
-                            description: "Backup created successfully",
-                            content: {
-                                "application/json": {
-                                    schema: {
-                                        type: "object",
-                                        properties: {
-                                            success: { type: "boolean" },
-                                            filename: { type: "string" },
-                                            size: { type: "number" },
-                                            timestamp: { type: "number" }
                                         }
                                     }
                                 }
@@ -1945,10 +1744,6 @@ export const generateSwaggerSpec = () => {
             {
                 name: "Authentication",
                 description: "User authentication and authorization"
-            },
-            {
-                name: "Connection",
-                description: "Database connection management"
             },
             {
                 name: "Schema",

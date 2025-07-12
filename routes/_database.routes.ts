@@ -89,11 +89,12 @@ _database.get("/health", async (c) => {
     }
 });
 
-// POST /api/_database/connect - Connecter une nouvelle base de données
-_database.post("/connect", async (c) => {
+// POST /api/_database/:dbName - Connecter une nouvelle base de données
+_database.post("/:dbName", async (c) => {
     try {
+        const name = c.req.param('dbName');
         const body = await c.req.json();
-        const { name, config }: { name: string; config: DatabaseConfig } = body;
+        const config: DatabaseConfig = body;
 
         if (!name || !config) {
             return c.json({
@@ -239,68 +240,6 @@ _database.get("/:name/info", async (c) => {
     }
 });
 
-// POST /api/_database/:name/query - Exécuter une requête SQL
-_database.post("/:name/query", async (c) => {
-    try {
-        const name = c.req.param('name');
-        const { query, type = 'SELECT' }: { query: string; type?: string } = await c.req.json();
-
-        if (!query) {
-            return c.json({
-                error: 'Query is required',
-                example: { query: 'SELECT * FROM users LIMIT 10', type: 'SELECT' }
-            }, 400);
-        }
-
-        if (!dbManager.getDatabaseNames().includes(name)) {
-            return c.json({
-                error: `Database '${name}' not found`,
-                available_databases: dbManager.getDatabaseNames()
-            }, 404);
-        }
-
-        const database = dbManager.getDatabase(name);
-        const sequelize = database.getConnection();
-
-        // Limiter les requêtes dangereuses en production
-        if (ConfigManager.isProduction()) {
-            const dangerousPatterns = [/DROP\s+/i, /DELETE\s+/i, /TRUNCATE\s+/i, /ALTER\s+/i];
-            if (dangerousPatterns.some(pattern => pattern.test(query))) {
-                return c.json({
-                    error: 'Dangerous queries are not allowed in production',
-                    query_type: 'RESTRICTED'
-                }, 403);
-            }
-        }
-
-        const startTime = Date.now();
-        const [results, metadata] = await sequelize.query(query);
-        const executionTime = Date.now() - startTime;
-
-        logger.info(`Query executed on '${name}' in ${executionTime}ms`);
-
-        return c.json({
-            query,
-            database: name,
-            execution_time_ms: executionTime,
-            row_count: Array.isArray(results) ? results.length : 0,
-            results: Array.isArray(results) ? results.slice(0, 100) : results, // Limiter à 100 résultats
-            metadata: {
-                fields: (metadata as any)?.fields || null,
-                affected_rows: (metadata as any)?.affectedRows || null
-            }
-        });
-
-    } catch (error) {
-        logger.error('Error executing query:', error);
-        return c.json({
-            error: 'Query execution failed',
-            details: error instanceof Error ? error.message : 'Unknown error',
-            query_hint: 'Check your SQL syntax and permissions'
-        }, 500);
-    }
-});
-
 // GET /api/_database/:database/get/:table - Récupérer des données d'une table (sans SQL brut)
 _database.post('/:database/get/:table', async (c) => {
     try {
@@ -392,6 +331,75 @@ _database.post('/:database/get/:table', async (c) => {
             error: 'Failed to fetch data',
             details: error instanceof Error ? error.message : 'Unknown error',
             hint: 'Check table name, columns, and relations.'
+        }, 500);
+    }
+});
+
+
+// UPDATE /api/_database/:database/update/:table - Mettre à jour des données dans une table
+_database.put('/:database/update/:table', async (c) => {
+    try {
+        const dbName = c.req.param('database');
+        const table = c.req.param('table');
+        const body = await c.req.json();
+        const { where, data } = body || {};
+        if (!dbManager.getDatabaseNames().includes(dbName)) {
+            return c.json({
+                error: `Database '${dbName}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+        const database = dbManager.getDatabase(dbName);
+        const sequelize = database.getConnection();
+        const models = sequelize.models;
+        const model = models[table];
+        if (!model) {
+            return c.json({
+                error: `Table/model '${table}' not found in database '${dbName}'`,
+                available_tables: Object.keys(models)
+            }, 404);
+        }
+        if (!where || typeof where !== 'object' || Object.keys(where).length === 0) {
+            return c.json({
+                error: 'Where clause is required for update',
+                hint: 'Provide a valid where clause to identify records to update'
+            }, 400);
+        }
+        if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+            return c.json({
+                error: 'Data to update is required',
+                hint: 'Provide valid data to update the records'
+            }, 400);
+        }
+        // Nettoyer les clés dont la valeur est un objet vide
+        const cleanedWhere = Object.fromEntries(
+            Object.entries(where).filter(([_, v]) => {
+                if (typeof v === 'object' && v !== null && Object.keys(v).length
+                    === 0) return false;
+                return true;
+            })
+        );
+        const [count] = await model.update(data, {
+            where: cleanedWhere
+        });
+        if (count === 0) {
+            return c.json({
+                message: 'No records updated',
+                count: 0
+            }, 404);
+        }
+        return c.json({
+            message: `${count} record(s) updated successfully in '${table}'`,
+            database: dbName,
+            table,
+            updated_count: count
+        });
+    } catch (error) {
+        logger.error('Error in update-table endpoint:', error);
+        return c.json({
+            error: 'Failed to update data',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            hint: 'Check table name, where clause, and data format.'
         }, 500);
     }
 });

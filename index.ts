@@ -9,6 +9,7 @@ import _relations from "./routes/_relations.routes";
 import { etag } from "hono/etag";
 import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
+import { cache } from "hono/cache";
 import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
 import { timeout } from "hono/timeout";
@@ -148,6 +149,13 @@ class App {
             }
             await next();
         });
+
+        this.app.get("*", cache({
+            cacheName: 'JamesDBBApiCache',
+            cacheControl: 'max-age=3600', // 1 hour
+            wait: true, // Required for Deno environment
+            cacheableStatusCodes: [200, 203, 204, 206, 300, 301, 404]
+        }));
 
         // API versioning
         const api = new Hono();

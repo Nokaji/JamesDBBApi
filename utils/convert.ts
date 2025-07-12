@@ -36,7 +36,7 @@ export async function autoAssociateFromForeignKeys(sequelize: Sequelize, registr
         }
     }
 }
-import { DataTypes, Sequelize, ModelAttributeColumnOptions } from 'sequelize';
+import { DataTypes, Sequelize } from 'sequelize';
 
 interface Column {
     name: string;
@@ -709,6 +709,67 @@ export async function generateModelsFromDatabase(sequelize: Sequelize): Promise<
         registry[tableName] = model;
     }
     return registry;
+}
+
+/**
+ * Convertit un modèle Sequelize (Model) en TableSchema (notre format générique)
+ * @param model Sequelize Model
+ * @returns TableSchema
+ */
+import type { Model, ModelAttributeColumnOptions, Association } from 'sequelize';
+
+export function convertSequelizeModelToTableSchema(model: any): TableSchema {
+    const table_name = model.tableName || model.name;
+    const columns: Column[] = [];
+    const attributes = model.rawAttributes || model.attributes;
+    for (const [colName, attrRaw] of Object.entries(attributes)) {
+        const attr = attrRaw as ModelAttributeColumnOptions & { type?: any };
+        const col: Column = {
+            name: colName,
+            type: (typeof attr.type === 'string') ? attr.type : (attr.type?.key || 'string'),
+            primary_key: !!attr.primaryKey,
+            nullable: attr.allowNull !== false,
+            default_value: attr.defaultValue,
+            unique: !!attr.unique,
+            auto_increment: !!attr.autoIncrement,
+            length: attr.type?.options?.length || undefined,
+            precision: attr.type?.options?.precision || undefined,
+            scale: attr.type?.options?.scale || undefined,
+            comment: attr.comment,
+        };
+        columns.push(col);
+    }
+
+    // Relations (associations)
+    const relations: TableRelation[] = [];
+    if (model.associations) {
+        for (const [as, assocRaw] of Object.entries(model.associations)) {
+            const assoc = assocRaw as Association;
+            let type: TableRelation['type'] | undefined = undefined;
+            if ((assoc as any).associationType === 'BelongsTo') type = 'belongsTo';
+            else if ((assoc as any).associationType === 'HasMany') type = 'hasMany';
+            else if ((assoc as any).associationType === 'HasOne') type = 'hasOne';
+            else if ((assoc as any).associationType === 'BelongsToMany') type = 'belongsToMany';
+            if (!type) continue;
+            const rel: TableRelation = {
+                type,
+                target: (assoc as any).target?.tableName || (assoc as any).target?.name || '',
+                foreignKey: (assoc as any).foreignKey || (assoc as any).foreignKeyAttribute?.name,
+                targetKey: (assoc as any).targetKey || (assoc as any).targetKeyAttribute?.name,
+                through: (assoc as any).throughModel?.tableName || (assoc as any).through || undefined,
+                as,
+                onDelete: (assoc as any).options?.onDelete,
+                onUpdate: (assoc as any).options?.onUpdate,
+            };
+            relations.push(rel);
+        }
+    }
+
+    return {
+        table_name,
+        columns,
+        relations: relations.length > 0 ? relations : undefined,
+    };
 }
 
 export {

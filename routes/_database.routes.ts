@@ -404,6 +404,125 @@ _database.put('/:database/update/:table', async (c) => {
     }
 });
 
+_database.post('/:database/insert/:table', async (c) => {
+    try {
+        const dbName = c.req.param('database');
+        const table = c.req.param('table');
+        const body = await c.req.json();
+        const { data } = body || {};
+        if (!dbManager.getDatabaseNames().includes(dbName)) {
+            return c.json({
+                error: `Database '${dbName}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+        const database = dbManager.getDatabase(dbName);
+        const sequelize = database.getConnection();
+        const models = sequelize.models;
+        const model = models[table];
+        if (!model) {
+            return c.json({
+                error: `Table/model '${table}' not found in database '${dbName}'`,
+                available_tables: Object.keys(models)
+            }, 404);
+        }
+
+        if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+            return c.json({
+                error: 'Data to insert is required',
+                hint: 'Provide valid data to insert into the table'
+            }, 400);
+        }
+
+        // Nettoyer les clés dont la valeur est un objet vide
+        const cleanedData = Object.fromEntries(
+            Object.entries(data).filter(([_, v]) => {
+                if (typeof v === 'object' && v !== null && Object.keys(v).length
+                    === 0) return false;
+                return true;
+            })
+        );
+        const result = await model.create(cleanedData);
+        return c.json({
+            message: 'Record inserted successfully',
+            database: dbName,
+            table,
+            record: result
+        }, 201);
+    } catch (error) {
+        logger.error('Error in insert-table endpoint:', error);
+        return c.json({
+            error: 'Failed to insert data',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            hint: 'Check table name and data format.'
+        }, 500);
+    }
+});
+
+// DELETE /api/_database/:database/delete/:table - Supprimer des données d'une table
+_database.delete('/:database/delete/:table', async (c) => {
+    try {
+        const dbName = c.req.param('database');
+        const table = c.req.param('table');
+        const body = await c.req.json();
+        const { where } = body || {};
+
+        if (!dbManager.getDatabaseNames().includes(dbName)) {
+            return c.json({
+                error: `Database '${dbName}' not found`,
+                available_databases: dbManager.getDatabaseNames()
+            }, 404);
+        }
+
+        const database = dbManager.getDatabase(dbName);
+        const sequelize = database.getConnection();
+        const models = sequelize.models;
+        const model = models[table];
+        if (!model) {
+            return c.json({
+                error: `Table/model '${table}' not found in database '${dbName}'`,
+                available_tables: Object.keys(models)
+            }, 404);
+        }
+        if (!where || typeof where !== 'object' || Object.keys(where).length === 0) {
+            return c.json({
+                error: 'Where clause is required for delete',
+                hint: 'Provide a valid where clause to identify records to delete'
+            }, 400);
+        }
+        // Nettoyer les clés dont la valeur est un objet vide
+        const cleanedWhere = Object.fromEntries(
+            Object.entries(where).filter(([_, v]) => {
+                if (typeof v === 'object' && v !== null && Object.keys(v).length
+                    === 0) return false;
+                return true;
+            })
+        );
+        const count = await model.destroy({
+            where: cleanedWhere
+        });
+        if (count === 0) {
+            return c.json({
+                message: 'No records deleted',
+                count: 0
+            }, 404);
+        }
+        return c.json({
+            message: `${count} record(s) deleted successfully from '${table}'`,
+            database: dbName,
+            table,
+            deleted_count: count
+        });
+    } catch (error) {
+        logger.error('Error in delete-table endpoint:', error);
+        return c.json({
+            error: 'Failed to delete data',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            hint: 'Check table name and where clause.'
+        }, 500);
+    }
+});
+
 // GET /api/_database/config - Configuration des bases de données disponibles
 _database.get("/config", (c) => {
     try {

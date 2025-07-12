@@ -89,29 +89,25 @@ _schema.get("/:database/tables", async (c) => {
 });
 
 // GET /api/_schema/:database/tables/:table - Décrit une table spécifique
+import { convertSequelizeModelToTableSchema } from '../utils/convert';
+
 _schema.get("/:database/tables/:table", async (c) => {
     try {
         const databaseName = c.req.param('database');
         const tableName = c.req.param('table');
         const database = dbManager.getDatabase(databaseName);
         const sequelize = database.getConnection();
-
-        const queryInterface = sequelize.getQueryInterface();
-        const attributes = await queryInterface.describeTable(tableName);
-        const indexes = await queryInterface.showIndex(tableName);
-
+        const model = sequelize.models[tableName];
+        if (!model) {
+            return c.json({ error: `Table/model '${tableName}' not found in database '${databaseName}'` }, 404);
+        }
+        const schema = convertSequelizeModelToTableSchema(model);
+        // Ajoute les indexes pour compatibilité avec l'ancien format
+        const indexes = await sequelize.getQueryInterface().showIndex(tableName);
         return c.json({
             database: databaseName,
             table: tableName,
-            columns: Object.entries(attributes).map(([name, attr]: [string, any]) => ({
-                name,
-                type: attr.type,
-                allowNull: attr.allowNull,
-                defaultValue: attr.defaultValue,
-                primaryKey: attr.primaryKey || false,
-                autoIncrement: attr.autoIncrement || false,
-                unique: attr.unique || false
-            })),
+            schema,
             indexes: Array.isArray(indexes) ? indexes.map((index: any) => ({
                 name: index.name,
                 columns: index.fields.map((field: any) => field.attribute),

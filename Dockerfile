@@ -14,7 +14,7 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 # Copier les fichiers de configuration des dépendances
-COPY package.json bun.lockb* ./
+COPY package.json bun.lockb* docker-entrypoint.sh ./
 
 # Stage de développement
 FROM base AS development

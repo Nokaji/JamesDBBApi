@@ -45,4 +45,4 @@ fi
 
 # Démarrer l'application
 echo "🌟 Starting application..."
-exec bun run index.ts
+exec bun run start

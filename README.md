@@ -1,9 +1,9 @@
 
 > ⚠️ **Project under active development**: Some features may be incomplete, unstable, or not working as expected. Please open an issue for any bug or suggestion!
 
-# JamesDbApi
+# JamesDBBApi (JamesDB Bridge API)
 
-A robust and modern database management API built with Hono, Sequelize, and TypeScript. JamesDbApi provides a powerful RESTful interface to manage multiple databases, create dynamic schemas, and execute queries securely.
+A robust and modern database management API built with Hono, Sequelize, and TypeScript. JamesDBBApi provides a powerful RESTful interface to manage multiple databases, create dynamic schemas, and execute queries securely.
 
 ## 🚀 Features
 
@@ -42,7 +42,7 @@ A robust and modern database management API built with Hono, Sequelize, and Type
 ```bash
 # Clone the project
 git clone <repository-url>
-cd JamesDbApi
+cd JamesDBBApi
 
 # Install dependencies
 bun install
@@ -94,8 +94,8 @@ bun run dev
 bun run prod
 
 # With Docker
-docker build -t jamesdbapi .
-docker run -p 3000:3000 jamesdbapi
+docker build -t JamesDBBApi .
+docker run -p 3000:3000 JamesDBBApi
 ```
 
 ### 2. Verify operation
@@ -360,7 +360,7 @@ bun run docker:run   # Run container
 ### Project Structure
 
 ```
-JamesDbApi/
+JamesDBBApi/
 ├── controllers/           # Controllers (to be implemented)
 ├── managers/
 │   └── ConfigManager.ts   # Configuration manager
@@ -496,6 +496,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ---
 
-**JamesDbApi** - A modern database API for your applications 🚀
+**JamesDBBApi** - A modern database API for your applications 🚀
 
 Developed with ❤️ by the James team

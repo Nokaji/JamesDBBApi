@@ -45,7 +45,7 @@ RUN bun install --frozen-lockfile
 FROM base AS production
 
 # Installer seulement les dépendances de production
-RUN bun install --frozen-lockfile --production=true && \
+RUN bun install --frozen-lockfile && \
     bun pm cache rm
 
 # Copier l'application buildée

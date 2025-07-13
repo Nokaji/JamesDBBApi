@@ -79,5 +79,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Changer vers l'utilisateur non-root
 USER bunuser
 
-# Commande par défaut
-CMD ["bun", "run", "start"]
+# Définir le point d'entrée
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

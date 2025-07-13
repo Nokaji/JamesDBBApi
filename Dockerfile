@@ -52,6 +52,7 @@ RUN bun install --frozen-lockfile && \
 
 # Copier l'application buildée
 # Copier et rendre exécutable le script d'entrée
+COPY --chown=bunuser:nodejs docker-entrypoint.sh /app
 RUN dos2unix /app/docker-entrypoint.sh || true
 RUN chmod +x /app/docker-entrypoint.sh
 

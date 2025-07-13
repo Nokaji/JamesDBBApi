@@ -15,6 +15,8 @@ WORKDIR /app
 
 # Copier les fichiers de configuration des dépendances
 COPY package.json bun.lockb* docker-entrypoint.sh ./
+RUN dos2unix docker-entrypoint.sh || true
+RUN chmod +x docker-entrypoint.sh
 
 # Stage de développement
 FROM base AS development
@@ -49,10 +51,8 @@ RUN bun install --frozen-lockfile && \
     bun pm cache rm
 
 # Copier l'application buildée
-COPY --from=builder --chown=bunuser:nodejs /app .
-
 # Copier et rendre exécutable le script d'entrée
-COPY --chown=bunuser:nodejs docker-entrypoint.sh /app/
+RUN dos2unix /app/docker-entrypoint.sh || true
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Créer les répertoires nécessaires

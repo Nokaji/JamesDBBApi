@@ -12,6 +12,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Définir le répertoire de travail
 WORKDIR /app
+VOLUME /app/data
 
 # Copier les fichiers de configuration des dépendances
 COPY package.json bun.lockb* docker-entrypoint.sh ./

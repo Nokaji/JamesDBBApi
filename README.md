@@ -496,4 +496,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 **JamesDBBApi** - A modern database API for your applications 🚀
 
-Developed with ❤️ by the James team
+Developed with ❤️ by Nokaji

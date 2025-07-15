@@ -1,83 +1,34 @@
 # Multi-stage build pour optimiser la taille de l'image
 FROM oven/bun:1.2.18-alpine AS base
+WORKDIR /usr/src/app
+VOLUME [ "/data" ]
 
-# Variables d'environnement
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV BUNS_NO_CLEAR_TERMINAL_ON_RELOAD=true
+# install dependencies into temp directory
+# this will cache them and speed up future builds
+FROM base AS install
+RUN mkdir -p /temp/dev
+COPY package.json bun.lock /temp/dev/
+RUN cd /temp/dev && bun install --frozen-lockfile
 
-# Créer un utilisateur non-root pour la sécurité
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S bunuser -u 1001
-
-# Définir le répertoire de travail
-WORKDIR /app
-VOLUME /app/data
-
-# Copier les fichiers de configuration des dépendances
-COPY package.json bun.lockb* docker-entrypoint.sh ./
-RUN dos2unix docker-entrypoint.sh || true
-RUN chmod +x docker-entrypoint.sh
-
-# Stage de développement
-FROM base AS development
-ENV NODE_ENV=development
-RUN bun install --frozen-lockfile
-COPY . .
-EXPOSE 3000
-USER bunuser
-CMD ["bun", "run", "dev"]
-
-# Stage de build
-FROM base AS builder
-ENV NODE_ENV=production
-
-# Installer toutes les dépendances (y compris dev pour build)
-RUN bun install --frozen-lockfile
-
-# Copier le code source
+# copy node_modules from temp directory
+# then copy all (non-ignored) project files into the image
+FROM base AS prerelease
+COPY --from=install /temp/dev/node_modules node_modules
 COPY . .
 
-# Build de l'application (si nécessaire)
-RUN bun run build || echo "No build script found, skipping..."
+# [optional] tests & build
+ENV NODE_ENV=production
+RUN bun test
+RUN bun run build
 
-# Nettoyer les dev dependencies
-RUN bun install --frozen-lockfile
+# copy production dependencies and source code into final image
+FROM base AS release
+COPY --from=install /temp/prod/node_modules node_modules
+COPY --from=prerelease /usr/src/app/index.ts .
+COPY --from=prerelease /usr/src/app/package.json .
 
-# Stage de production
-FROM base AS production
-
-# Installer seulement les dépendances de production
-RUN bun install --frozen-lockfile && \
-    bun pm cache rm
-
-# Copier l'application buildée
-# Copier et rendre exécutable le script d'entrée
-COPY --chown=bunuser:nodejs docker-entrypoint.sh /app
-RUN dos2unix /app/docker-entrypoint.sh || true
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Créer les répertoires nécessaires
-RUN mkdir -p logs data uploads temp && \
-    chown -R bunuser:nodejs logs data uploads temp
-
-# Installer les outils système nécessaires pour les bases de données
-RUN apk add --no-cache \
-    sqlite \
-    postgresql-client \
-    mysql-client \
-    curl \
-    ca-certificates
-
-# Exposer le port
-EXPOSE 3000
-
-# Ajouter un healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
-
-# Changer vers l'utilisateur non-root
-USER bunuser
-
+# run the app
+USER bun
+EXPOSE 3000/tcp
 # Définir le point d'entrée
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

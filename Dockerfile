@@ -3,7 +3,8 @@ FROM oven/bun:1.2.18-alpine AS base
 WORKDIR /usr/src/app
 VOLUME [ "/usr/src/app/data" ]
 COPY . .
-RUN chmod +x /usr/src/app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/src/app/docker-entrypoint.sh \
+    && chmod +x /usr/src/app/docker-entrypoint.sh
 RUN bun install --production
 
 # run the app

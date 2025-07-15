@@ -11,6 +11,10 @@ RUN bun install --production
 RUN mkdir -p /usr/src/app/dist \
     && chown bun:bun /usr/src/app/dist
 
+# Créer le dossier data et donner les droits à bun
+RUN mkdir -p /usr/src/app/data \
+    && chown bun:bun /usr/src/app/data
+
 # run the app
 USER bun
 EXPOSE 3000/tcp

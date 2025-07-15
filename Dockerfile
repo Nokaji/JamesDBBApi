@@ -7,6 +7,10 @@ RUN sed -i 's/\r$//' /usr/src/app/docker-entrypoint.sh \
     && chmod +x /usr/src/app/docker-entrypoint.sh
 RUN bun install --production
 
+# Créer le dossier dist et donner les droits à bun
+RUN mkdir -p /usr/src/app/dist \
+    && chown bun:bun /usr/src/app/dist
+
 # run the app
 USER bun
 EXPOSE 3000/tcp

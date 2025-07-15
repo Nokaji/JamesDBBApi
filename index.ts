@@ -14,6 +14,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
 import { timeout } from "hono/timeout";
 import Logging from "./utils/logging";
+import { graphqlServer } from "@hono/graphql-server";
 
 const { serveStatic } = isRunningOnBun()
     ? await import("hono/bun")
@@ -93,7 +94,8 @@ class App {
             this.app.use("*", async (c, next) => {
                 const proto = c.req.header("x-forwarded-proto");
                 const host = c.req.header("host");
-                if (proto !== "https" && host) {
+                // N'applique la redirection que si x-forwarded-proto est présent (donc derrière un proxy SSL)
+                if (proto && proto !== "https" && host) {
                     return c.redirect(`https://${host}${c.req.url}`, 301);
                 }
                 return next();
@@ -146,6 +148,17 @@ class App {
                         received_size: `${Math.round(parseInt(contentLength, 10) / 1024 / 1024)}MB`
                     }, 413);
                 }
+            }
+            await next();
+        });
+
+        this.app.use("*", async (c, next) => {
+            // Authentication middleware
+            if (c.req.method !== 'OPTIONS' && !c.req.header('Authorization')) {
+                return c.json({
+                    error: 'Unauthorized',
+                    message: 'Authorization header is required'
+                }, 401);
             }
             await next();
         });
@@ -337,7 +350,8 @@ class App {
         this.logger.info(`🚀 Server started in ${startupTime}ms`);
         this.logger.info(`🌐 Listening at http://${host}:${port}`);
         this.logger.info(`📦 Environment: ${ConfigManager.APP.ENV}`);
-        this.logger.info(`🗄️  Databases: ${this.dbManager.getDatabaseNames().join(', ')}`);
+        if (this.dbManager.getDatabaseNames().length > 0)
+            this.logger.info(`🗄️  Databases: ${this.dbManager.getDatabaseNames().join(', ')}`);
 
         // Graceful shutdown
         const gracefulShutdown = async (signal: string) => {

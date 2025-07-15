@@ -46,7 +46,7 @@ _database.get("/health", async (c) => {
         const dbNames = dbManager.getDatabaseNames();
         const healthDetails: any = {};
 
-        for (const name of dbNames) {
+        for (const name of dbNames) { 
             try {
                 const database = dbManager.getDatabase(name);
                 const sequelize = database.getConnection();

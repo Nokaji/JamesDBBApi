@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  app:
+    build: .
+    container_name: jamesdbbapi_app
+    expose:
+      - "3000"
+    volumes:
+      - ./data:/usr/src/app/data
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: jamesdbbapi_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    restart: unless-stopped

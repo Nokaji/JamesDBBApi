@@ -11,4 +11,4 @@ RUN bun install --production
 USER bun
 EXPOSE 3000/tcp
 # Définir le point d'entrée
-ENTRYPOINT ["/usr/src/app/docker-entrypoint.sh"]
+ENTRYPOINT ["bun", "run", "start"]

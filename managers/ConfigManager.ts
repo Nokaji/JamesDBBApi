@@ -23,7 +23,6 @@ interface AppConfig {
 
 interface SecurityConfig {
     JWT_SECRET: string;
-    JWT_EXPIRY: string;
     BCRYPT_ROUNDS: number;
     SESSION_SECRET: string;
     CSRF_SECRET: string;
@@ -144,7 +143,6 @@ class ConfigManager {
     private loadSecurityConfig(): SecurityConfig {
         return {
             JWT_SECRET: process.env.JWT_SECRET || this.generateRandomSecret(),
-            JWT_EXPIRY: process.env.JWT_EXPIRY || '24h',
             BCRYPT_ROUNDS: this.parseNumber(process.env.BCRYPT_ROUNDS, 12),
             SESSION_SECRET: process.env.SESSION_SECRET || this.generateRandomSecret(),
             CSRF_SECRET: process.env.CSRF_SECRET || this.generateRandomSecret(),
@@ -177,9 +175,6 @@ class ConfigManager {
         }
         if (!['debug', 'info', 'warn', 'error'].includes(this.APP.LOG_LEVEL)) {
             errors.push('LOG_LEVEL must be one of: debug, info, warn, error');
-        }
-        if (this.SECURITY.JWT_SECRET.length < 32) {
-            this.logger.warn('JWT_SECRET should be at least 32 characters long');
         }
         if (this.SECURITY.BCRYPT_ROUNDS < 10) {
             this.logger.warn('BCRYPT_ROUNDS should be at least 10 for security');

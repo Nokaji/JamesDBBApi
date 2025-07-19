@@ -153,16 +153,16 @@ class App {
         });
 
         this.app.use("*", async (c, next) => {
-            if (c.req.path.startsWith("/api/auth"))
-                return next(); // Skip auth for /auth routes
             // Authentication middleware
-            if (c.req.method !== 'OPTIONS' && !c.req.header('Authorization')) {
+            if (c.req.header('Authorization') === `Bearer ${ConfigManager.SECURITY.JWT_SECRET}`) {
+                await next();
+            }
+            else {
                 return c.json({
                     error: 'Unauthorized',
-                    message: 'Authorization header is required'
+                    message: 'Invalid or missing Authorization header'
                 }, 401);
             }
-            await next();
         });
 
         this.app.get("*", cache({

@@ -153,6 +153,8 @@ class App {
         });
 
         this.app.use("*", async (c, next) => {
+            if (c.req.path.startsWith("/api/auth"))
+                return next(); // Skip auth for /auth routes
             // Authentication middleware
             if (c.req.method !== 'OPTIONS' && !c.req.header('Authorization')) {
                 return c.json({

@@ -3,9 +3,9 @@ import { isRunningOnBun } from "./utils/runtime";
 import ConfigManager from "./managers/ConfigManager";
 import { DatabaseManager } from "./middlewares/database";
 import { generateSwaggerSpec } from "./utils/swagger";
-import _schema from "./routes/_schema.routes";
-import _database from "./routes/_database.routes";
-import _relations from "./routes/_relations.routes";
+import schema from "./routes/schema.routes";
+import database from "./routes/database.routes";
+import relation from "./routes/relation.routes";
 import { etag } from "hono/etag";
 import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
@@ -176,9 +176,9 @@ class App {
         const api = new Hono();
 
         // API routes
-        api.route("/_schema", _schema);
-        api.route("/_database", _database);
-        api.route("/_relations", _relations);
+        api.route("/schema", schema);
+        api.route("/database", database);
+        api.route("/relation", relation);
 
         // API info endpoint
         api.get("/", (c) => {

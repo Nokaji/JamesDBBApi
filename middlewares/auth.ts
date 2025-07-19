@@ -21,6 +21,10 @@ class AuthManager {
         return AuthManager.instance;
     }
 
+    public isRefreshTokenValid(refreshToken: string): boolean {
+        return refreshToken === ConfigManager.SECURITY.JWT_SECRET;
+    }
+
     public async generateToken(user: User): Promise<string> {
         const payload: JWTPayload = {
             sub: user.id,

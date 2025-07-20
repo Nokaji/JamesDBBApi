@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { DatabaseConfig } from '../utils/types';
 import Logging from '../utils/logging';
@@ -161,7 +162,8 @@ class ConfigManager {
         if (this.APP?.ENV === 'production') {
             this.logger.warn('Using generated secret in production. Please set proper environment variables.');
         }
-        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        // Generate a cryptographically secure 32-byte secret (256 bits), encoded as base64
+        return crypto.randomBytes(32).toString('base64');
     }
 
     private validateConfig(): void {

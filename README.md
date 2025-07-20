@@ -1,4 +1,3 @@
-
 > ⚠️ **Project under active development**: Some features may be incomplete, unstable, or not working as expected. Please open an issue for any bug or suggestion!
 
 # JamesDBBApi (JamesDB Bridge API)
@@ -8,24 +7,28 @@ A robust and modern database management API built with Hono, Sequelize, and Type
 ## 🚀 Features
 
 ### Multi-Database Management
+
 - **Multiple DBMS support**: SQLite, PostgreSQL, MySQL, MariaDB, MSSQL
 - **Simultaneous connections**: Manage multiple databases in parallel
 - **Health checks**: Real-time monitoring of connection status
 - **Dynamic configuration**: Add/remove databases on the fly
 
 ### Complete Schema API
+
 - **Dynamic table creation**: REST API to define your schemas
 - **Advanced validation**: Strict validation of data structures
 - **Extended types**: Support for 25+ SQL data types
 - **Constraints and indexes**: Complete management of constraints and indexes
 
 ### Advanced Security
+
 - **JWT authentication**: Token-based authentication system
 - **Role-based authorization**: Granular access control
 - **Rate limiting**: Protection against abuse and DDoS attacks
 - **Security headers**: CORS, CSRF, HSTS, and more
 
 ### Performance and Monitoring
+
 - **Structured logging**: Detailed logs with configurable levels
 - **Real-time metrics**: Monitoring endpoints and metrics
 - **Optimizations**: Connection pooling, cache, and SQL optimizations
@@ -40,6 +43,7 @@ A robust and modern database management API built with Hono, Sequelize, and Type
 ### Quick Installation
 
 Not using Bun yet ?
+
 ```bash
 Windows : powershell -c "irm bun.sh/install.ps1 | iex"
 Linux/Macos : curl -fsSL https://bun.sh/install | bash
@@ -146,12 +150,14 @@ curl -X POST http://localhost:3000/api/_schema/primary/tables \
 ### Main Endpoints
 
 #### 🏠 Application
+
 - `GET /` - API homepage
 - `GET /health` - Complete health check
 - `GET /metrics` - System metrics
 - `GET /api` - API information
 
 #### 🗄️ Database Management
+
 - `GET /api/_database` - List databases
 - `POST /api/_database/connect` - Connect a new database
 - `DELETE /api/_database/:name` - Disconnect a database
@@ -159,6 +165,7 @@ curl -X POST http://localhost:3000/api/_schema/primary/tables \
 - `POST /api/_database/:name/query` - Execute SQL query
 
 #### 📋 Schema Management
+
 - `GET /api/_schema` - Schema overview
 - `GET /api/_schema/types` - Available data types
 - `POST /api/_schema/validate` - Validate a schema
@@ -256,17 +263,18 @@ curl -X POST http://localhost:3000/api/_database/postgres_main/query \
 
 ### Environment Variables
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `NODE_ENV` | Runtime environment | `development` | `production` |
-| `APP_PORT` | Listening port | `3000` | `8080` |
-| `LOG_LEVEL` | Log level | `info` | `debug` |
-| `JWT_SECRET` | JWT secret key | Auto-generated | `your-secret-key` |
-| `RATE_LIMIT_MAX_REQUESTS` | Request limit | `100` | `1000` |
+| Variable                  | Description         | Default        | Example           |
+| ------------------------- | ------------------- | -------------- | ----------------- |
+| `NODE_ENV`                | Runtime environment | `development`  | `production`      |
+| `APP_PORT`                | Listening port      | `3000`         | `8080`            |
+| `LOG_LEVEL`               | Log level           | `info`         | `debug`           |
+| `JWT_SECRET`              | JWT secret key      | Auto-generated | `your-secret-key` |
+| `RATE_LIMIT_MAX_REQUESTS` | Request limit       | `100`          | `1000`            |
 
 ### Supported Data Types
 
 #### Numeric Types
+
 - `integer`, `int` - Standard integer
 - `smallint` - Small integer
 - `bigint` - Large integer
@@ -274,6 +282,7 @@ curl -X POST http://localhost:3000/api/_database/postgres_main/query \
 - `decimal`, `numeric` - Precise decimal numbers
 
 #### Text Types
+
 - `string`, `varchar` - Variable character string
 - `char` - Fixed character string
 - `text` - Long text
@@ -281,11 +290,13 @@ curl -X POST http://localhost:3000/api/_database/postgres_main/query \
 - `url` - URL with validation
 
 #### Date/Time Types
+
 - `timestamp`, `datetime` - Date and time
 - `date` - Date only
 - `time` - Time only
 
 #### Special Types
+
 - `boolean` - Boolean
 - `uuid` - Unique identifier
 - `json`, `jsonb` - JSON data
@@ -297,34 +308,34 @@ curl -X POST http://localhost:3000/api/_database/postgres_main/query \
 
 ```javascript
 // Client-side example
-const response = await fetch('/api/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    username: 'admin',
-    password: 'password'
-  })
+const response = await fetch("/api/auth/login", {
+	method: "POST",
+	headers: { "Content-Type": "application/json" },
+	body: JSON.stringify({
+		username: "admin",
+		password: "password",
+	}),
 });
 
 const { token } = await response.json();
 
 // Using the token
-const apiResponse = await fetch('/api/_database', {
-  headers: {
-    'Authorization': `Bearer ${token}`
-  }
+const apiResponse = await fetch("/api/_database", {
+	headers: {
+		Authorization: `Bearer ${token}`,
+	},
 });
 ```
 
 #### Authorization Middleware
 
 ```typescript
-import { authenticate, authorize, requireRole } from './middlewares/auth';
+import { authenticate, authorize, requireRole } from "./middlewares/auth";
 
 // Protected routes
-app.use('/api/_database/*', authenticate());
-app.use('/api/_schema/*/tables', authorize('database:write'));
-app.use('/api/admin/*', requireRole('admin'));
+app.use("/api/_database/*", authenticate());
+app.use("/api/_schema/*/tables", authorize("database:write"));
+app.use("/api/admin/*", requireRole("admin"));
 ```
 
 ## 🧪 Testing and Development
@@ -398,12 +409,14 @@ curl http://localhost:3000/api/_database/rate-limit-status
 ### Logs
 
 Logs are structured and include:
+
 - **Timestamp**: Precise timestamp
 - **Logger**: Log source (DatabaseManager, AuthManager, etc.)
 - **Level**: Log level (DEBUG, INFO, WARN, ERROR)
 - **Message**: Detailed message
 
 Example:
+
 ```
 [2025-07-11T10:30:45.123Z] [DatabaseManager] [INFO]: Database 'primary' added and connected successfully
 [2025-07-11T10:30:45.456Z] [AuthManager] [WARN]: Token expired for user john.doe
@@ -412,6 +425,7 @@ Example:
 ## 🚨 Security and Best Practices
 
 ### Built-in Security
+
 - **HTTPS required** in production
 - **Strict input validation**
 - **Rate limiting** by IP and user
@@ -419,6 +433,7 @@ Example:
 - **SQL sanitization** via Sequelize
 
 ### Recommendations
+
 1. **Change default secrets** in production
 2. **Use HTTPS only** in production
 3. **Limit database user permissions**
@@ -445,12 +460,14 @@ Example:
 ## 📈 Roadmap
 
 ### Version 1.1 (Coming Soon)
+
 - [ ] GraphQL interface
 - [ ] Integrated Redis cache
 - [ ] Automatic migrations
 - [ ] Web administration interface
 
 ### Version 1.2 (Planned)
+
 - [ ] Clustering and load balancing
 - [ ] Complete audit trail
 - [ ] Automatic backup
@@ -461,6 +478,7 @@ Example:
 ### Common Issues
 
 #### Database connection error
+
 ```bash
 # Check configuration
 curl http://localhost:3000/health
@@ -470,6 +488,7 @@ tail -f logs/app.log
 ```
 
 #### Rate limiting too strict
+
 ```env
 # Adjust in .env
 RATE_LIMIT_MAX_REQUESTS=1000
@@ -477,6 +496,7 @@ RATE_LIMIT_WINDOW_MS=3600000
 ```
 
 #### JWT errors
+
 ```env
 # Generate new secret
 JWT_SECRET=$(openssl rand -base64 32)

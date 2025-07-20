@@ -153,6 +153,11 @@ class App {
         });
 
         this.app.use("*", async (c, next) => {
+            if (c.req.path.startsWith("/docs") || c.req.path.startsWith("/swagger.json")) {
+                await next();
+                return;
+            }
+
             // Authentication middleware
             if (c.req.header('Authorization') === `Bearer ${ConfigManager.SECURITY.JWT_SECRET}`) {
                 await next();

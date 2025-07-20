@@ -80,6 +80,7 @@ DB_DIALECT=sqlite
 SQLITE_PATH=./data/james.db
 
 # Security
+# IMPORTANT : Ne pas mettre de guillemets autour de la valeur !
 JWT_SECRET=your-super-secret-jwt-key-here
 CORS_ORIGINS=http://localhost:3000
 ```
@@ -149,32 +150,38 @@ curl -X POST http://localhost:3000/api/_schema/primary/tables \
 
 ### Main Endpoints
 
-#### 🏠 Application
+| Method | Endpoint        | Description                    |
+| ------ | --------------- | ------------------------------ |
+| GET    | `/`             | Root endpoint (Welcome + info) |
+| GET    | `/api`          | API information                |
+| GET    | `/health`       | Health check                   |
+| GET    | `/metrics`      | System metrics                 |
+| GET    | `/docs`         | Documentation (Swagger UI)     |
+| GET    | `/swagger.json` | OpenAPI/Swagger spec           |
 
-- `GET /` - API homepage
-- `GET /health` - Complete health check
-- `GET /metrics` - System metrics
-- `GET /api` - API information
+#### API v1 Endpoints
 
-#### 🗄️ Database Management
+| Method | Endpoint           | Description          |
+| ------ | ------------------ | -------------------- |
+| GET    | `/api/v1/`         | API info (versionné) |
+| GET    | `/api/v1/schema`   | Schema routes        |
+| GET    | `/api/v1/database` | Database routes      |
+| GET    | `/api/v1/relation` | Relation routes      |
 
-- `GET /api/_database` - List databases
-- `POST /api/_database/connect` - Connect a new database
-- `DELETE /api/_database/:name` - Disconnect a database
-- `GET /api/_database/:name/info` - Detailed information
-- `POST /api/_database/:name/query` - Execute SQL query
+> Les routes `/api/v1/schema`, `/api/v1/database`, `/api/v1/relation` sont des points d'entrée pour les sous-routes définies dans `routes/schema.routes.ts`, `routes/database.routes.ts`, `routes/relation.routes.ts`.
 
-#### 📋 Schema Management
+#### Authentification
 
-- `GET /api/_schema` - Schema overview
-- `GET /api/_schema/types` - Available data types
-- `POST /api/_schema/validate` - Validate a schema
-- `GET /api/_schema/:database/tables` - List tables
-- `POST /api/_schema/:database/tables` - Create table
-- `GET /api/_schema/:database/tables/:table` - Describe table
-- `DELETE /api/_schema/:database/tables/:table` - Delete table
+The authtification is in the header:
+Authorization : `Bearer {JWT_SECRET IN YOUR .ENV}`
 
-### Usage Examples
+#### Exemples de routes (selon les sous-modules)
+
+- `/api/v1/schema` : gestion des schémas de BDD
+- `/api/v1/database` : gestion des connexions et opérations BDD
+- `/api/v1/relation` : gestion des relations entre tables
+
+---
 
 #### Connect a PostgreSQL database
 
@@ -306,26 +313,26 @@ curl -X POST http://localhost:3000/api/_database/postgres_main/query \
 
 #### JWT Token Generation
 
-```javascript
+````javascript
 // Client-side example
 const response = await fetch("/api/auth/login", {
-	method: "POST",
-	headers: { "Content-Type": "application/json" },
-	body: JSON.stringify({
-		username: "admin",
-		password: "password",
-	}),
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    username: "admin",
+    password: "password",
+  }),
 });
 
 const { token } = await response.json();
 
 // Using the token
 const apiResponse = await fetch("/api/_database", {
-	headers: {
-		Authorization: `Bearer ${token}`,
-	},
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
 });
-```
+```javascript
 
 #### Authorization Middleware
 
@@ -336,7 +343,7 @@ import { authenticate, authorize, requireRole } from "./middlewares/auth";
 app.use("/api/_database/*", authenticate());
 app.use("/api/_schema/*/tables", authorize("database:write"));
 app.use("/api/admin/*", requireRole("admin"));
-```
+````
 
 ## 🧪 Testing and Development
 

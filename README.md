@@ -173,7 +173,7 @@ curl -X POST http://localhost:3000/api/_schema/primary/tables \
 #### Authentification
 
 The authtification is in the header:
-Authorization : `Bearer {JWT_SECRET IN YOUR .ENV}`
+`Authorization` : `Bearer {JWT_SECRET IN YOUR .ENV}`
 
 #### Exemples de routes (selon les sous-modules)
 

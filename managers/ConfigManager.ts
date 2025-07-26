@@ -4,7 +4,9 @@ import { DatabaseConfig } from '../utils/types';
 import Logging from '../utils/logging';
 
 // Load environment variables
-dotenv.config();
+dotenv.config({
+    path: path.resolve(process.cwd(), 'data', '.env')
+});
 
 interface AppConfig {
     ENV: string;

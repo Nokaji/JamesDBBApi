@@ -6,7 +6,7 @@ COPY . .
 COPY .env.example data/.env
 RUN sed -i 's/\r$//' /usr/src/app/docker-entrypoint.sh \
     && chmod +x /usr/src/app/docker-entrypoint.sh
-RUN bun install --production
+RUN bun install
 
 # Créer le dossier dist et donner les droits à bun
 RUN mkdir -p /usr/src/app/dist \

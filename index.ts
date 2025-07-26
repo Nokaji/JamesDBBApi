@@ -341,7 +341,7 @@ class App {
             {
                 fetch: this.app.fetch,
                 port,
-                ...(ConfigManager.isProduction() ? { hostname: host } : {})
+                ...(ConfigManager.isProduction() && host !== "0.0.0.0" ? { hostname: host } : {})
             },
             (info) => {
                 if (info) {

@@ -59,7 +59,7 @@ class ConfigManager {
         this.APP = this.loadAppConfig();
         this.SECURITY = this.loadSecurityConfig();
 
-        this.dbPath = path.resolve(process.cwd(), 'data', 'james.db');
+        this.dbPath = path.resolve(process.env.HOME || process.cwd(), 'data', 'db_configs.sqlite');
         this.ensureDb();
 
         this.validateConfig();

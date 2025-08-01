@@ -3,11 +3,6 @@ import dotenv from 'dotenv';
 import { DatabaseConfig } from '../utils/types';
 import Logging from '../utils/logging';
 
-// Load environment variables
-dotenv.config({
-    path: path.resolve(process.cwd(), 'data', '.env')
-});
-
 interface AppConfig {
     ENV: string;
     PORT: number;
@@ -51,16 +46,30 @@ class ConfigManager {
     public readonly SECURITY: SecurityConfig;
 
     private db: Database | null = null;
+    private servicePath: string;
     private dbPath: string;
 
     private constructor() {
         this.logger = Logging.getInstance('ConfigManager');
 
+        const home = process.env.HOME || process.env.USERPROFILE;
+        if (!home) throw new Error('Cannot determine user home directory.');
+        this.dbPath = process.platform === 'darwin'
+            ? path.join(home, 'Library', 'Application Support')
+            : path.join(home, '.config');
+
+        this.servicePath = path.join(this.dbPath, 'James', 'services', 'JamesDBBApi');
+        if (!fs.existsSync(this.servicePath)) fs.mkdirSync(this.servicePath, { recursive: true });
+
+        this.dbPath = path.join(this.servicePath, 'db.sqlite');
+        this.ensureEnvironmentVariables();
+        this.ensureDb();
+
+        dotenv.config({ path: path.join(this.servicePath, '.env') });
+
         this.APP = this.loadAppConfig();
         this.SECURITY = this.loadSecurityConfig();
 
-        this.dbPath = path.resolve(process.env.HOME || process.cwd(), 'data', 'db_configs.sqlite');
-        this.ensureDb();
 
         this.validateConfig();
         this.logger.info('Configuration loaded successfully');
@@ -71,6 +80,18 @@ class ConfigManager {
             ConfigManager.instance = new ConfigManager();
         }
         return ConfigManager.instance;
+    }
+
+    private ensureEnvironmentVariables() {
+        if (!fs.existsSync(path.join(this.servicePath, '.env'))) {
+            fs.copyFile(".env.example", path.join(this.servicePath, ".env"), (err) => {
+                if (err) {
+                    this.logger.error('Failed to copy .env.example to .env:', err);
+                } else {
+                    this.logger.info('.env.example copied to .env. Please update it with your configuration.');
+                }
+            });
+        }
     }
 
     private ensureDb() {

@@ -1,3 +1,12 @@
+import { UUID } from "crypto";
+import { getPublicIPAddress } from "./utils";
+
+interface Config {
+    databases: {
+        [key: string]: DatabaseConfig;
+    };
+}
+
 interface DatabaseConfig {
     host: string;
     port: number;
@@ -5,8 +14,13 @@ interface DatabaseConfig {
     password: string;
     database: string;
     dialect: 'mysql' | 'postgres' | 'sqlite' | 'mssql';
-};
+}
 
+interface Service {
+    id: UUID;
+    host: Promise<string>;
+    createdAt: Date;
+}
 interface User {
     id: string;
     username: string;
@@ -26,4 +40,4 @@ interface JWTPayload {
     [key: string]: any; // Allow additional properties for Hono JWT compatibility
 }
 
-export { DatabaseConfig, User, JWTPayload };
+export { DatabaseConfig, User, JWTPayload, Service, Config };

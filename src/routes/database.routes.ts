@@ -433,19 +433,62 @@ _database.post('/:database/insert/:table', async (c) => {
         }
 
         // Nettoyer les clés dont la valeur est un objet vide
-        const cleanedData = Object.fromEntries(
+        let cleanedData = Object.fromEntries(
             Object.entries(data).filter(([_, v]) => {
                 if (typeof v === 'object' && v !== null && Object.keys(v).length
                     === 0) return false;
                 return true;
             })
         );
+
+        // Exclure automatiquement les champs auto-increment pour éviter les conflits
+        const autoIncrementFields = Object.keys(model.rawAttributes).filter(field => {
+            const attr = model.rawAttributes[field];
+            
+            // Vérifier si c'est un champ auto-increment
+            if (attr.autoIncrement === true) {
+                return true;
+            }
+            
+            // Vérifier si c'est un champ avec une séquence PostgreSQL (nextval)
+            if (attr.defaultValue && typeof attr.defaultValue === 'string') {
+                const defaultStr = attr.defaultValue.toString().toLowerCase();
+                if (defaultStr.includes('nextval')) {
+                    return true;
+                }
+            }
+            
+            // Vérifier si c'est une clé primaire avec une valeur par défaut (souvent auto-générée)
+            if (attr.primaryKey && attr.defaultValue) {
+                return true;
+            }
+            
+            return false;
+        });
+
+        // Supprimer les champs auto-increment des données d'insertion
+        const removedFields: string[] = [];
+        autoIncrementFields.forEach(field => {
+            if (cleanedData[field] !== undefined) {
+                delete cleanedData[field];
+                removedFields.push(field);
+                logger.debug(`Removed auto-increment field '${field}' from insert data for table '${table}'`);
+            }
+        });
+
         const result = await model.create(cleanedData);
+
+        // Informer l'utilisateur des champs auto-générés
+        const responseMessage = removedFields.length > 0
+            ? `Record inserted successfully. Auto-increment fields (${removedFields.join(', ')}) were automatically handled.`
+            : 'Record inserted successfully';
+
         return c.json({
-            message: 'Record inserted successfully',
+            message: responseMessage,
             database: dbName,
             table,
-            record: result
+            record: result,
+            ...(removedFields.length > 0 && { auto_handled_fields: removedFields })
         }, 201);
     } catch (error) {
         logger.error('Error in insert-table endpoint:', error);

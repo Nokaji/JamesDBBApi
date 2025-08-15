@@ -685,11 +685,15 @@ export async function generateModelsFromDatabase(sequelize: Sequelize): Promise<
             }
 
             // Gestion des valeurs par défaut SQL (CURRENT_TIMESTAMP, etc.)
-            let defaultValue = def.defaultValue;
+            let defaultValue: any = def.defaultValue;
             if (typeof defaultValue === 'string') {
                 const val = defaultValue.toUpperCase();
                 if (val.includes('CURRENT_TIMESTAMP')) {
                     defaultValue = (sequelize as any).literal ? (sequelize as any).literal('CURRENT_TIMESTAMP') : undefined;
+                }
+                // Pour PostgreSQL, ne pas inclure les séquences comme valeur par défaut
+                else if (val.includes('NEXTVAL')) {
+                    defaultValue = undefined;
                 }
             }
 

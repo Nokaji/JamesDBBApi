@@ -264,6 +264,7 @@ class DatabaseManager {
     }
 
     public async disconnectAll(): Promise<void> {
+        await configManager.save();
         const disconnectPromises = Array.from(this.databases.entries()).map(async ([name, db]) => {
             try {
                 await db.disconnect();

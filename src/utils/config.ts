@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { DatabaseConfig } from './types';
+import { Config, DatabaseConfig } from './types';
 import Logging from './logging';
 
 interface AppConfig {
@@ -28,10 +28,17 @@ interface SecurityConfig {
     SECURE_COOKIES: boolean;
 }
 
+interface RedisConfig {
+    HOST: string;
+    PORT: number;
+    USERNAME: string;
+    PASSWORD: string;
+}
 
-import Database from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
+import { object } from 'zod';
+import { RedisManager } from '../middlewares/redis';
 
 interface DatabaseConfigEntry {
     name: string;
@@ -44,34 +51,40 @@ class ConfigManager {
 
     public readonly APP: AppConfig;
     public readonly SECURITY: SecurityConfig;
-
-    private db: Database | null = null;
+    public readonly REDIS: RedisConfig;
+    private redisManager: RedisManager;
+    private config: Config;
     private servicePath: string;
-    private dbPath: string;
+    private configPath: string;
 
     private constructor() {
         this.logger = Logging.getInstance('ConfigManager');
 
         const home = process.env.HOME || process.env.USERPROFILE;
         if (!home) throw new Error('Cannot determine user home directory.');
-        this.dbPath = process.platform === 'darwin'
+        this.configPath = process.platform === 'darwin'
             ? path.join(home, 'Library', 'Application Support')
             : path.join(home, '.config');
 
-        this.servicePath = path.join(this.dbPath, 'James', 'services', 'JamesDBBApi');
+        this.servicePath = path.join(this.configPath, 'James', 'services', 'JamesDBBApi');
         if (!fs.existsSync(this.servicePath)) fs.mkdirSync(this.servicePath, { recursive: true });
 
-        this.dbPath = path.join(this.servicePath, 'db.sqlite');
+        this.configPath = path.join(this.servicePath, 'config.json');
         this.ensureEnvironmentVariables();
-        this.ensureDb();
+        this.ensureConfig();
+
+        // Charger le config.json en premier
+        this.config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
 
         dotenv.config({ path: path.join(this.servicePath, '.env') });
+        this.redisManager = RedisManager.getInstance();
 
         this.APP = this.loadAppConfig();
         this.SECURITY = this.loadSecurityConfig();
-
+        this.REDIS = this.loadRedisConfig();
 
         this.validateConfig();
+
         this.logger.info('Configuration loaded successfully');
     }
 
@@ -94,50 +107,56 @@ class ConfigManager {
         }
     }
 
-    private ensureDb() {
-        const dir = path.dirname(this.dbPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+    public save() {
+        fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+        this.logger.info('Configuration saved to', this.configPath);
+    }
+
+    private ensureConfig() {
+        if (!fs.existsSync(this.configPath)) {
+            fs.writeFileSync(this.configPath, JSON.stringify({ databases: {} }, null, 2));
         }
-        this.db = new Database(this.dbPath);
-        this.db.run(`CREATE TABLE IF NOT EXISTS db_configs (
-            name TEXT PRIMARY KEY,
-            config TEXT NOT NULL
-        )`);
     }
 
     // --- Database config management ---
 
     public getAllDatabaseConfigs(): DatabaseConfigEntry[] {
-        if (!this.db) this.ensureDb();
-        const rows = this.db!.query('SELECT name, config FROM db_configs').all() as { name: string; config: string }[];
-        return rows.map(row => ({
-            name: row.name,
-            config: JSON.parse(row.config)
+        if (!this.config) this.ensureConfig();
+        return Object.entries(this.config.databases || {}).map(([name, config]) => ({
+            name,
+            config
         }));
     }
 
     public addOrUpdateDatabaseConfig(entry: DatabaseConfigEntry): void {
-        if (!this.db) this.ensureDb();
-        this.db!.run(
-            'INSERT OR REPLACE INTO db_configs (name, config) VALUES (?, ?)',
-            [entry.name, JSON.stringify(entry.config)]
-        );
+        if (!this.config) this.ensureConfig();
+        if (!this.config.databases) {
+            this.config.databases = {};
+        }
+        this.config.databases[entry.name] = entry.config;
+        this.redisManager.publish('config:update', JSON.stringify(this.config));
+        this.save();
         this.logger.info(`Database config '${entry.name}' saved.`);
     }
 
     public removeDatabaseConfig(name: string): void {
-        if (!this.db) this.ensureDb();
-        this.db!.run('DELETE FROM db_configs WHERE name = ?', [name]);
-        this.logger.info(`Database config '${name}' removed.`);
+        if (!this.config) this.ensureConfig();
+        if (this.config.databases && this.config.databases[name]) {
+            delete this.config.databases[name];
+            this.redisManager.publish('config:update', JSON.stringify(this.config));
+            this.save();
+            this.logger.info(`Database config '${name}' removed.`);
+        } else {
+            this.logger.warn(`Database config '${name}' not found.`);
+        }
     }
 
     /**
      * Remplace toutes les configs BDD par la liste fournie (reset complet)
      */
     public setAllDatabaseConfigs(entries: DatabaseConfigEntry[]): void {
-        if (!this.db) this.ensureDb();
-        this.db!.run('DELETE FROM db_configs');
+        if (!this.config) this.ensureConfig();
+        this.config.databases = {};
         for (const entry of entries) {
             this.addOrUpdateDatabaseConfig(entry);
         }
@@ -147,6 +166,7 @@ class ConfigManager {
     // --- App & Security config (inchangé) ---
 
     private loadAppConfig(): AppConfig {
+
         return {
             ENV: process.env.NODE_ENV || 'development',
             PORT: this.parseNumber(process.env.APP_PORT, 3000),
@@ -165,13 +185,41 @@ class ConfigManager {
     }
 
     private loadSecurityConfig(): SecurityConfig {
+        let jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+            jwtSecret = this.generateRandomSecret(128);
+            const envPath = path.join(this.servicePath, '.env');
+            let envContent = '';
+            if (fs.existsSync(envPath)) {
+                envContent = fs.readFileSync(envPath, 'utf-8');
+                if (!/^JWT_SECRET=/m.test(envContent)) {
+                    envContent += `\nJWT_SECRET=${jwtSecret}\n`;
+                } else {
+                    envContent = envContent.replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${jwtSecret}`);
+                }
+            } else {
+                envContent = `JWT_SECRET=${jwtSecret}\n`;
+            }
+            fs.writeFileSync(envPath, envContent, 'utf-8');
+            this.logger.info('JWT_SECRET generated and saved to .env');
+        }
+
         return {
-            JWT_SECRET: process.env.JWT_SECRET || this.generateRandomSecret(),
+            JWT_SECRET: jwtSecret,
             BCRYPT_ROUNDS: this.parseNumber(process.env.BCRYPT_ROUNDS, 12),
             SESSION_SECRET: process.env.SESSION_SECRET || this.generateRandomSecret(),
             CSRF_SECRET: process.env.CSRF_SECRET || this.generateRandomSecret(),
             HTTPS_ONLY: process.env.HTTPS_ONLY === 'true',
             SECURE_COOKIES: process.env.SECURE_COOKIES === 'true'
+        };
+    }
+
+    private loadRedisConfig(): RedisConfig {
+        return {
+            HOST: process.env.REDIS_HOST || 'localhost',
+            PORT: this.parseNumber(process.env.REDIS_PORT, 6379),
+            USERNAME: process.env.REDIS_USERNAME || '',
+            PASSWORD: process.env.REDIS_PASSWORD || ''
         };
     }
 
@@ -181,12 +229,12 @@ class ConfigManager {
         return isNaN(parsed) ? defaultValue : parsed;
     }
 
-    private generateRandomSecret(): string {
+    private generateRandomSecret(byte: number = 32): string {
         if (this.APP?.ENV === 'production') {
             this.logger.warn('Using generated secret in production. Please set proper environment variables.');
         }
         // Generate a cryptographically secure 32-byte secret (256 bits), encoded as base64
-        return crypto.randomBytes(32).toString('base64');
+        return crypto.randomBytes(byte).toString('base64');
     }
 
     private validateConfig(): void {

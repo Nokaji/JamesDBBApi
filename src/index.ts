@@ -14,7 +14,11 @@ import { secureHeaders } from "hono/secure-headers";
 import { logger as honoLogger } from "hono/logger";
 import { timeout } from "hono/timeout";
 import Logging from "./utils/logging";
-import { graphqlServer } from "@hono/graphql-server";
+import { RedisManager } from "./middlewares/redis";
+import { Worker } from "worker_threads";
+import { randomUUID } from "crypto";
+import { getPublicIPAddress } from "./utils/utils";
+import { z } from "zod";
 
 const { serveStatic } = isRunningOnBun()
     ? await import("hono/bun")
@@ -30,10 +34,28 @@ class App {
     dbManager: DatabaseManager = DatabaseManager.getInstance();
 
     constructor() {
+        this.initRedis();
         this.initializeDatabase();
         this.dbManager.startAutoRetry();
         this.initRouter();
         this.initServer();
+    }
+
+    private async initRedis() {
+        const redisManager = RedisManager.getInstance();
+        redisManager.registerInstance();
+
+        const worker = new Worker("./src/workers/heartbeat.worker.ts");
+
+        // Envoyer l'ID de l'instance au worker
+        worker.postMessage({
+            type: "INIT",
+            instanceId: redisManager.getCurrentInstance().id
+        });
+
+        worker.on("message", (msg) => {
+            this.logger.info("Heartbeat worker message:", msg);
+        });
     }
 
     private async initializeDatabase() {
@@ -50,9 +72,6 @@ class App {
             this.logger.info(`Initialized ${db.length} database connection(s)`);
         } catch (error) {
             this.logger.error('Failed to initialize databases:', error);
-            if (ConfigManager.isProduction()) {
-                process.exit(1);
-            }
         }
     }
 
@@ -159,10 +178,29 @@ class App {
             }
 
             // Authentication middleware
-            if (c.req.header('Authorization') === `Bearer ${ConfigManager.SECURITY.JWT_SECRET}`) {
-                await next();
+            const authHeader = c.req.header('Authorization');
+            if (!authHeader) {
+                return c.json({
+                    error: 'Unauthorized',
+                    message: 'Missing Authorization header'
+                }, 401);
             }
-            else {
+
+            // Use zod to validate the format: "Bearer <token>"
+            const authSchema = z.string().regex(/^Bearer\s+(.+)$/);
+
+            const parseResult = authSchema.safeParse(authHeader);
+            if (!parseResult.success) {
+                return c.json({
+                    error: 'Unauthorized',
+                    message: 'Invalid Authorization header format'
+                }, 401);
+            }
+
+            const token = parseResult.data.replace(/^Bearer\s+/, '');
+            if (token === ConfigManager.SECURITY.JWT_SECRET) {
+                await next();
+            } else {
                 return c.json({
                     error: 'Unauthorized',
                     message: 'Invalid or missing Authorization header'
@@ -170,12 +208,14 @@ class App {
             }
         });
 
-        this.app.get("*", cache({
-            cacheName: 'JamesDBBApiCache',
-            cacheControl: 'max-age=3600', // 1 hour
-            wait: true, // Required for Deno environment
-            cacheableStatusCodes: [200, 203, 204, 206, 300, 301, 404]
-        }));
+        if (typeof globalThis.caches !== "undefined") {
+            this.app.get("*", cache({
+                cacheName: 'JamesDBBApiCache',
+                cacheControl: 'max-age=3600', // 1 hour
+                wait: true, // Required for Deno environment
+                cacheableStatusCodes: [200, 203, 204, 206, 300, 301, 404]
+            }));
+        }
 
         // API versioning
         const api = new Hono();

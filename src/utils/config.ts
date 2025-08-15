@@ -77,7 +77,6 @@ class ConfigManager {
         this.config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
 
         dotenv.config({ path: path.join(this.servicePath, '.env') });
-        this.redisManager = RedisManager.getInstance();
 
         this.APP = this.loadAppConfig();
         this.SECURITY = this.loadSecurityConfig();
@@ -85,6 +84,7 @@ class ConfigManager {
 
         this.validateConfig();
 
+        this.redisManager = RedisManager.getInstance(this.REDIS);
         this.logger.info('Configuration loaded successfully');
     }
 
@@ -134,8 +134,10 @@ class ConfigManager {
             this.config.databases = {};
         }
         this.config.databases[entry.name] = entry.config;
+
+        // Publier à toutes les instances
         this.redisManager.publish('config:update', JSON.stringify(this.config));
-        this.save();
+
         this.logger.info(`Database config '${entry.name}' saved.`);
     }
 
@@ -143,8 +145,10 @@ class ConfigManager {
         if (!this.config) this.ensureConfig();
         if (this.config.databases && this.config.databases[name]) {
             delete this.config.databases[name];
+
+            // Publier à toutes les instances
             this.redisManager.publish('config:update', JSON.stringify(this.config));
-            this.save();
+
             this.logger.info(`Database config '${name}' removed.`);
         } else {
             this.logger.warn(`Database config '${name}' not found.`);
@@ -158,8 +162,15 @@ class ConfigManager {
         if (!this.config) this.ensureConfig();
         this.config.databases = {};
         for (const entry of entries) {
-            this.addOrUpdateDatabaseConfig(entry);
+            if (!this.config) this.ensureConfig();
+            if (!this.config.databases) {
+                this.config.databases = {};
+            }
+            this.config.databases[entry.name] = entry.config;
         }
+        // Publier à toutes les instances
+        this.redisManager.publish('config:update', JSON.stringify(this.config));
+
         this.logger.info(`All database configs replaced (${entries.length} entries).`);
     }
 
@@ -279,6 +290,5 @@ class ConfigManager {
         };
     }
 }
-
 const configManager = ConfigManager.getInstance();
 export default configManager;

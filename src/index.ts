@@ -42,7 +42,7 @@ class App {
     }
 
     private async initRedis() {
-        const redisManager = RedisManager.getInstance();
+        const redisManager = RedisManager.getInstance(ConfigManager.REDIS);
         redisManager.registerInstance();
 
         const worker = new Worker("./src/workers/heartbeat.worker.ts");

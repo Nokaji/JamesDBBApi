@@ -1,15 +1,23 @@
 import { createClient } from 'redis';
-import configManager from '../utils/config';
 import { v4 as uuidv4 } from 'uuid';
 import { Service } from '../utils/types';
 import { getPublicIPAddress } from '../utils/utils';
 import { randomUUID } from 'crypto';
 
+interface RedisConfig {
+    HOST: string;
+    PORT: number;
+    USERNAME: string;
+    PASSWORD: string;
+}
+
 export class RedisManager {
     private static instance: RedisManager;
     private readonly CHANNEL_PREFIX = 'services:jamesdbbapi:';
     private redisClient: ReturnType<typeof createClient>;
+    private subscriberClient: ReturnType<typeof createClient>;
     private readonly currentInstance: Service;
+    private redisConfig: RedisConfig;
 
     public getCurrentInstance(): Service {
         return this.currentInstance;
@@ -19,7 +27,23 @@ export class RedisManager {
         return this.CHANNEL_PREFIX;
     }
 
-    private constructor() {
+    public async acquireLock(key: string, ttl_seconds: number): Promise<boolean> {
+        try {
+            return await this.redisClient.set(key, this.currentInstance.id, { NX: true, EX: ttl_seconds }) === 'OK';
+        } catch {
+            return false;
+        }
+    }
+
+    public async releaseLock(key: string): Promise<void> {
+        try {
+            await this.redisClient.del(key);
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    private constructor(redisConfig: RedisConfig) {
         // Initialiser currentInstance en premier pour garantir qu'il soit fixe
         this.currentInstance = {
             id: randomUUID(),
@@ -27,17 +51,28 @@ export class RedisManager {
             createdAt: new Date()
         };
 
+        this.redisConfig = redisConfig;
+
+        // Client principal pour les opérations normales
         this.redisClient = createClient({
-            url: `redis://${configManager.REDIS.HOST}:${configManager.REDIS.PORT}`,
-            password: configManager.REDIS.PASSWORD,
-            username: configManager.REDIS.USERNAME
+            url: `redis://${this.redisConfig.HOST}:${this.redisConfig.PORT}`,
+            password: this.redisConfig.PASSWORD,
+            username: this.redisConfig.USERNAME
         });
+
+        // Client séparé pour les subscriptions
+        this.subscriberClient = createClient({
+            url: `redis://${this.redisConfig.HOST}:${this.redisConfig.PORT}`,
+            password: this.redisConfig.PASSWORD,
+            username: this.redisConfig.USERNAME
+        });
+
         this.redisClient.connect();
+        this.subscriberClient.connect();
     }
 
     public async listen(channel: string, callback: (message: string) => void): Promise<void> {
-        const client = await this.getClient();
-        client.subscribe(this.CHANNEL_PREFIX + channel, (message) => {
+        this.subscriberClient.subscribe(this.CHANNEL_PREFIX + channel, (message) => {
             callback(message);
         });
     }
@@ -48,18 +83,13 @@ export class RedisManager {
     }
 
     public async disconnect(): Promise<void> {
-        await this.redisClient.quit();
+        await Promise.all([
+            this.redisClient.quit(),
+            this.subscriberClient.quit()
+        ]);
     }
 
     public async getClient(): Promise<ReturnType<typeof createClient>> {
-        if (!this.redisClient) {
-            this.redisClient = createClient({
-                url: `redis://${configManager.REDIS.HOST}:${configManager.REDIS.PORT}`,
-                password: configManager.REDIS.PASSWORD,
-                username: configManager.REDIS.USERNAME
-            });
-            await this.redisClient.connect();
-        }
         return this.redisClient;
     }
 
@@ -76,9 +106,12 @@ export class RedisManager {
         console.log("Refreshed Redis instances:", this.getCurrentInstance().id);
     }
 
-    public static getInstance(): RedisManager {
+    public static getInstance(redisConfig?: RedisConfig): RedisManager {
         if (!RedisManager.instance) {
-            RedisManager.instance = new RedisManager();
+            if (!redisConfig) {
+                throw new Error('RedisConfig is required for first initialization');
+            }
+            RedisManager.instance = new RedisManager(redisConfig);
         }
         return RedisManager.instance;
     }

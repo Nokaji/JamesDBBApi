@@ -1,4 +1,4 @@
-import ConfigManager from '../managers/ConfigManager';
+import ConfigManager from './config';
 
 export const generateSwaggerSpec = () => {
     return {

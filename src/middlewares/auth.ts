@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono';
 import { sign, verify } from 'hono/jwt';
-import ConfigManager from '../managers/ConfigManager';
+import ConfigManager from '../utils/config';
 import Logging from '../utils/logging';
 import { User, JWTPayload } from '../utils/types';
 

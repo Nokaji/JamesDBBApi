@@ -1,9 +1,7 @@
 import { Hono } from "hono";
 import { DatabaseManager } from "../middlewares/database";
 import Logging from "../utils/logging";
-import ConfigManager from "../managers/ConfigManager";
 import { DatabaseConfig } from "../utils/types";
-import configManager from "../managers/ConfigManager";
 
 const _database = new Hono();
 const logger = Logging.getInstance('DatabaseRoutes');
@@ -46,7 +44,7 @@ _database.get("/health", async (c) => {
         const dbNames = dbManager.getDatabaseNames();
         const healthDetails: any = {};
 
-        for (const name of dbNames) { 
+        for (const name of dbNames) {
             try {
                 const database = dbManager.getDatabase(name);
                 const sequelize = database.getConnection();

@@ -2,7 +2,7 @@ import { DatabaseConfig } from "../utils/types.ts";
 import { Sequelize, DataTypes } from 'sequelize';
 import Logging from "../utils/logging.ts";
 
-import configManager from "../managers/ConfigManager.ts";
+import configManager from "../utils/config.ts";
 
 class Database {
     /**

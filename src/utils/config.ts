@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { DatabaseConfig } from '../utils/types';
-import Logging from '../utils/logging';
+import { DatabaseConfig } from './types';
+import Logging from './logging';
 
 // Load environment variables
 dotenv.config({

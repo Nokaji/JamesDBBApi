@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { isRunningOnBun } from "./utils/runtime";
-import ConfigManager from "./managers/ConfigManager";
+import ConfigManager from "./utils/config";
 import { DatabaseManager } from "./middlewares/database";
 import { generateSwaggerSpec } from "./utils/swagger";
 import schema from "./routes/schema.routes";
